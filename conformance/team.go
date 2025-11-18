@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Team", func() {
+var _ = Describe("Team", Ordered, func() {
 	AfterAll(func() {
 		By("remove the team")
 	})

@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 )
 
-var _ = Describe("Project", func() {
+var _ = Describe("Project", Ordered, func() {
 	BeforeAll(func() {
 		By("create a team")
 		By("add a user to the team")

@@ -27,40 +27,31 @@ type suit struct {
 }
 
 func (s *suit) BeforeSuite() {
-	Context("AdminClient", func() {
-		It("admin login", func() {
-			By("admin login first time")
+	By("admin login first time")
 
-			By("admin process resource without changing password should be fail")
+	By("admin process resource without changing password should be fail")
 
-			By("admin change password")
+	By("admin change password")
 
-			By("admin process resource without login again should fail")
+	By("admin process resource without login again should fail")
 
-			By("admin login again")
-		})
-	})
+	By("admin login again")
 
-	// invite user more than one
-	Context("Invite user", func() {
-		It("admin invites user", func() {
-			By("admin invites user")
+	By("admin invites user")
 
-			By("admin set role and permission for the user")
+	By("admin set role and permission for the user")
 
-			By("user login")
+	By("user login")
 
-			By("user process resource without changing password should fail")
+	By("user process resource without changing password should fail")
 
-			By("user change password")
+	By("user change password")
 
-			By("user process resource without login again should fail")
+	By("user process resource without login again should fail")
 
-			By("user login again")
+	By("user login again")
 
-			By("user process resource")
-		})
-	})
+	By("user process resource")
 }
 
 func (s *suit) AfterSuit() {
