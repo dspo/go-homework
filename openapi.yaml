@@ -4,12 +4,261 @@ info:
   description: A sample API to illustrate OpenAPI concepts
   version: 1.0.0
 servers:
-  - url: http://api.example.com/v1
-    description: Production server
+- url: http://api.example.com/v1
+  description: Production server
 paths:
-  /users:
+  /api/login:
+    post:
+      summary: 用户登录
+      description: |-
+        用户正确登录后，应当通过 Set-Cookie 返回登录相关凭证。
+        客户端后续取用 Cookie 对其他接口进行访问。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              oneOf:
+              - type: object
+                title: LoginWithUsername
+                required: [ username, password ]
+                properties:
+                  username:
+                    $ref: '#/components/schemas/username'
+                  password:
+                    $ref: '#/components/schemas/password'
+                additionalProperties: false
+              - type: object
+                title: LoginWithEmail
+                required: [ email, password ]
+                properties:
+                  email:
+                    $ref: '#/components/schemas/email'
+                  password:
+                    $ref: '#/components/schemas/password'
+                additionalProperties: false
+            example:
+              {
+                "username": "HuaYi",
+                "password": "my_password"
+              }
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/logout:
+    post:
+      summary: 用户登出
+      description: |-
+        用户登出后，会话应当失效。
+      responses:
+        '200':
+          description: Success
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/me:
+    get:
+      summary: 查询用户信息
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    put:
+      summary: me 修改自身信息
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                email:
+                  $ref: '#/components/schemas/User/properties/email'
+                nickname:
+                  $ref: '#/components/schemas/User/properties/nickname'
+                logo:
+                  $ref: '#/components/schemas/User/properties/logo'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/me/password:
+    put:
+      summary: 用户修改自身密码
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                old_password:
+                  $ref: '#/components/schemas/password'
+                new_password:
+                  $ref: '#/components/schemas/password'
+              additionalProperties: false
+      responses:
+        '200':
+          description: Success
+        default:
+          description: 发生错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/me/teams:
+    get:
+      summary: 查询用户本人加入的 teams 列表
+      parameters:
+      - name: leading
+        description: |-
+          筛选本人作为 Leader 的 teams。
+          传 true 则仅返回本人作为 Leader 的 teams。
+          传 false 则仅返回本人未作为 Leader 的 teams。
+          不传则返回本人参与的所有 teams。
+        in: query
+        schema:
+          enum: [true, false]
+        required: false
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Team'
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/me/projects:
+    get:
+      summary: 查询本人参与的 projects 列表
+      description: |-
+        示例：
+        /api/me/projects?team_id=1&team_id=2
+      parameters:
+        - in: query
+          name: team_id
+          schema:
+            type: array
+            items:
+              type: integer
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                allOf:
+                - $ref: '#/components/schemas/ListResponse'
+                - type: object
+                  properties:
+                    list:
+                      type: array
+                      items:
+                        $ref: '#/components/schemas/Project'
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/users:
+    post:
+      summary: 为系统添加一名 user
+      description: |-
+        仅 admin 用户可以添加用户
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  $ref: '#/components/schemas/username'
+                password:
+                  $ref: '#/components/schemas/password'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  username:
+                    $ref: '#/components/schemas/username'
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     get:
       summary: Returns a list of users.
+      description: |-
+        - 当 me == admin，可以查询所有 users 列表。
+        - 当 me == 普通用户，仅能查看同处一个 Team 的 users 列表。
+      parameters:
+        - in: query
+          name: team_id
+          description: |-
+            - 该参数可以多传。
+            - 该参数旨在用 team_id 筛选 users 列表。
+          schema:
+            type: array
+            items:
+              type: integer
+          required: false
+        - in: query
+          name: role_name
+          schema:
+            type: array
+            items:
+              type: integer
+          description: |-
+            - 该参数可以多传。
+            - 该参数旨在用 role_name 筛选 users 列表。
+          required: false
       responses:
         '200':
           description: A JSON array of user names
@@ -19,13 +268,133 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/User'
+        default:
+          description: 其他错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/users/{user_id}:
+    get:
+      summary: 查询用户详情
+      description: |- 
+        - 如果 me 与被查用户不同处于任何 Team，则无权限。
+      parameters:
+        - in: path
+          name: user_id
+          required: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/User'
+                  - type: object
+                    properties:
+
+
+    put:
+      summary: ""
+      responses:
+
+    delete:
+      summary: ""
+      responses:
+  /api/teams:
+  /api/teams/{team_id}:
+
+
 components:
   schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: 描述错误信息
     User:
       type: object
       properties:
         id:
           type: integer
-          format: int64
+          readOnly: true
+        username:
+          allOf:
+            - $ref: '#/components/schemas/username'
+            - readOnly: true
+        email:
+          $ref: '#/components/schemas/email'
+        nickname:
+          description: |-
+            用户昵称。
+            如果无昵称，则与 username 相同。
+          type: string
+        logo:
+          description: 用户头像。是 base64 编码字符串或 URL。
+          type: string
+        roles:
+          description: 用户的角色（可以含多个）
+          type: array
+          items:
+            $ref: '#/components/schemas/Role'
+        crated_at:
+          $ref: '#/components/schemas/timestamp'
+        updated_at:
+          $ref: '#/components/schemas/timestamp'
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
         name:
           type: string
+    Team:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+    Project:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: integer
+        description:
+          type: string
+        status:
+          type: string
+          enum: [WAIT_FOR_SCHEDULE, IN_PROGRESS, FINISHED]
+        team_id:
+          type: integer
+        created_at:
+          $ref: '#/components/schemas/timestamp'
+        updated_at:
+          $ref: '#/components/schemas/timestamp'
+    ListResponse:
+      type: object
+      properties:
+        total:
+          type: integer
+        list:
+          type: array
+      required: [total, list]
+      additionalProperties: false
+    username:
+      type: string
+      pattern: '^[a-zA-Z0-9_-]{4,30}$'
+    email:
+      type: string
+      pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    password:
+      type: string
+      pattern: '^[a-zA-Z0-9_-]{8,30}$'
+    timestamp:
+      description: 用户创建时间
+      type: integer
+      format: timestamp in seconds
+      example: 1763540621
