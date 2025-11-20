@@ -1,3 +1,4 @@
+# OpenAPI 3.0 specification for
 openapi: 3.0.0
 info:
   title: Sample API
@@ -6,49 +7,61 @@ info:
 
     ## admin
 
-    在系统初始化时，应当创建出 admin 用户：
-    
-    - 用户名：admin
-    - 初始密码：admin
-    
+    在系统初始化时，应当创建出 admin 用户: 
+
+    - 用户名: admin
+    - 初始密码: admin
+
     admin 用户拥有超然的权限，能查询和操作所有资源。但 admin 用户不能删除自身。
 
     ## 用户对用户的可见性
-    
+
     **当两个用户同处于一个 Team，则两用户互相可见。**
     比如 user::A in [team::a, tema::b], user::B in {team::b, team::c}, user::C in {team::c, team::D}.
     那么 user::A 与 user::B 同处于 team::b, 则 user::A 与 user::B 互相可见。
     user::A 与 user::C 不同处于任何 Team，则 user::A 与 user::C 互相不可见。
     那么 user::A 访问 `/api/users` 或 `/api/teams/{team_id}/users` 这样的接口时，接口返回的 users 列表只能包含 {user::B}, 而不能包含 {user::C}.
-    
-    用户可见性会影响一些接口逻辑：
+
+    用户可见性会影响一些接口逻辑: 
     - 如果接口返回 users 列表，那么列表中不应当包含 Me 不可见的那部分 users。
     - Me 没有权限查询不可见的 User 的详情。
 
     ## Team Leader
 
     Admin 可以标记普通用户为 Team Leader。
-    一个 Team 可以没有 Team Leader，最多只能有一个 Team Leader。
-    Team 的 Leader 可以被更换，Admin 和现任 Team Leader 可以执行此操作。（见`PATCH #/api/teams/{team_id}`）
-    Leader 可以读写其 Team 及该 Team 下的子资源（主要是 projects）。
+    一个 Team 可以没有 Team Leader, 最多只能有一个 Team Leader。
+    Team 的 Leader 可以被更换，Admin 和现任 Team Leader 可以执行此操作。(见`PATCH #/api/teams/{team_id}`)
+    Leader 可以读写其 Team 及该 Team 下的子资源(主要是 projects)。
     一个 User 可以作为多个 Team 的 Leader。
 
   version: 1.0.0
+  license:
+    name: MIT
+    url: https://mit-license.org/
 servers:
-- url: https://api.example.com/v1
-  description: Production server
+  - url: https://api.example.com/v1
+    description: Production server
+security:
+  - {}
 paths:
   /healthz:
     get:
-      tags: [ System ]
+      tags: [System]
+      operationId: healthz
       summary: 健康检查
       description: 返回 200 OK 即表示服务已准备好。
       responses:
         200:
           description: OK
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
+
   /api/audits:
     get:
-      tags: [ Audit ]
+      tags: [Audit]
+      operationId: audits
       summary: 查询审计记录
       description: |-
         审计日志的格式由开发者自行实现。
@@ -57,12 +70,12 @@ paths:
         其他操作由开发者自行决定是否需要记录审计日志。
         但不应当所有操作都记录审计日志。
       parameters:
-      - $ref: '#/components/parameters/order_by'
-      - $ref: '#/components/parameters/page'
-      - $ref: '#/components/parameters/page_size'
-      - $ref: '#/components/parameters/keyword'
-      - $ref: '#/components/parameters/start_at'
-      - $ref: '#/components/parameters/end_at'
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/page_size"
+        - $ref: "#/components/parameters/keyword"
+        - $ref: "#/components/parameters/start_at"
+        - $ref: "#/components/parameters/end_at"
       responses:
         200:
           description: OK
@@ -70,7 +83,7 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/ListResponse'
+                  - $ref: "#/components/schemas/ListResponse"
                 properties:
                   list:
                     type: array
@@ -78,22 +91,23 @@ paths:
                       type: object
                       properties:
                         id:
-                          $ref: '#/components/schemas/id'
+                          $ref: "#/components/schemas/id"
                         content:
-                          type: array
-                          items:
-                            type: string
+                          type: string
                         create_at:
-                          $ref: '#/components/schemas/timestamp'
+                          $ref: "#/components/schemas/timestamp"
                         updated_at:
-                          $ref: '#/components/schemas/timestamp'
+                          $ref: "#/components/schemas/timestamp"
+        400:
+          $ref: "#/components/responses/default"
         default:
-          $ref: '#/components/responses/default'
+          $ref: "#/components/responses/default"
 
   /api/login:
     post:
+      operationId: login
       tags:
-      - Me
+        - Me
       summary: 用户登录
       description: |-
         用户正确登录后，应当通过 Set-Cookie 返回登录相关凭证。
@@ -103,46 +117,47 @@ paths:
           application/json:
             schema:
               oneOf:
-              - type: object
-                title: LoginWithUsername
-                required: [ username, password ]
-                properties:
-                  username:
-                    $ref: '#/components/schemas/username'
-                  password:
-                    $ref: '#/components/schemas/password'
-                additionalProperties: false
-              - type: object
-                title: LoginWithEmail
-                required: [ email, password ]
-                properties:
-                  email:
-                    $ref: '#/components/schemas/email'
-                  password:
-                    $ref: '#/components/schemas/password'
-                additionalProperties: false
-            example:
-              {
-                "username": "HuaYi",
-                "password": "my_password"
-              }
+                - type: object
+                  title: LoginWithUsername
+                  required: [username, password]
+                  properties:
+                    username:
+                      $ref: "#/components/schemas/username"
+                    password:
+                      $ref: "#/components/schemas/password"
+                  additionalProperties: false
+                - type: object
+                  title: LoginWithEmail
+                  required: [email, password]
+                  properties:
+                    email:
+                      $ref: "#/components/schemas/email"
+                    password:
+                      $ref: "#/components/schemas/password"
+                  additionalProperties: false
+            example: { "username": "HuaYi", "password": "my_password" }
       responses:
         200: { description: OK }
-        default: { $ref: '#/components/responses/default' }
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
   /api/logout:
     post:
+      operationId: logout
       tags:
-      - Me
+        - Me
       summary: 用户登出
       description: |-
         用户登出后，会话应当失效。
       responses:
         200: { description: OK }
-        default: { $ref: '#/components/responses/default' }
+        400:
+          $ref: "#/components/responses/default"
+        default: { $ref: "#/components/responses/default" }
   /api/me:
     get:
+      operationId: me
       tags:
-      - Me
+        - Me
       summary: 查询用户信息
       responses:
         200:
@@ -150,11 +165,16 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        default: { $ref: '#/components/responses/default' }
+                $ref: "#/components/schemas/User"
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
+
     put:
+      operationId: updateMe
       tags:
-      - Me
+        - Me
       summary: me 修改自身信息
       requestBody:
         content:
@@ -162,24 +182,26 @@ paths:
             schema:
               properties:
                 email:
-                  $ref: '#/components/schemas/User/properties/email'
+                  $ref: "#/components/schemas/User/properties/email"
                 nickname:
-                  $ref: '#/components/schemas/User/properties/nickname'
+                  $ref: "#/components/schemas/User/properties/nickname"
                 logo:
-                  $ref: '#/components/schemas/User/properties/logo'
+                  $ref: "#/components/schemas/User/properties/logo"
       responses:
         200:
           description: Success
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        default: { $ref: '#/components/responses/default' }
+                $ref: "#/components/schemas/User"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
 
   /api/me/password:
     put:
+      operationId: updateMyPassword
       tags:
-      - Me
+        - Me
       summary: 用户修改自身密码
       requestBody:
         content:
@@ -188,31 +210,33 @@ paths:
               type: object
               properties:
                 old_password:
-                  $ref: '#/components/schemas/password'
+                  $ref: "#/components/schemas/password"
                 new_password:
-                  $ref: '#/components/schemas/password'
+                  $ref: "#/components/schemas/password"
               additionalProperties: false
       responses:
         200:
           description: Success
-        default: { $ref: '#/components/responses/default' }
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
   /api/me/teams:
     get:
+      operationId: getMyTeams
       tags:
-      - Me
-      - Teams
+        - Me
+        - Teams
       summary: 查询用户本人加入的 teams 列表
       parameters:
-      - name: leading
-        description: |-
-          筛选本人作为 Leader 的 teams。
-          传 true 则仅返回本人作为 Leader 的 teams。
-          传 false 则仅返回本人未作为 Leader 的 teams。
-          不传则返回本人参与的所有 teams。
-        in: query
-        schema:
-          enum: [ true, false ]
-        required: false
+        - name: leading
+          description: |-
+            筛选本人作为 Leader 的 teams。
+            传 true 则仅返回本人作为 Leader 的 teams。
+            传 false 则仅返回本人未作为 Leader 的 teams。
+            不传则返回本人参与的所有 teams。
+          in: query
+          schema:
+            enum: [true, false]
+          required: false
       responses:
         200:
           description: Success
@@ -220,31 +244,55 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/ListResponse'
-                - type: object
-                  properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '#/components/schemas/Team'
-        default: { $ref: '#/components/responses/default' }
+                  - $ref: "#/components/schemas/ListResponse"
+                  - type: object
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Team"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
+  /api/me/teams/{team_id}:
+    parameters:
+      - in: path
+        name: team_id
+        schema:
+          type: integer
+        required: true
+    delete:
+      tags:
+        - Me
+        - Teams
+      operationId: exitTeam
+      summary: Me 主动退出 Team
+      responses:
+        200:
+          description: OK
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
 
   /api/me/projects:
     get:
       tags:
-      - Me
-      - Projects
+        - Me
+        - Projects
       summary: 查询本人参与的 projects 列表
       description: |-
-        示例：
+        示例: 
         /api/me/projects?team_id=1&team_id=2
+      operationId: getMyProjects
       parameters:
-      - in: query
-        name: team_id
-        schema:
-          type: array
-          items:
-            type: integer
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/page_size"
+        - $ref: "#/components/parameters/search_project_name"
+        - in: query
+          name: team_id
+          schema:
+            type: array
+            items:
+              type: integer
       responses:
         200:
           description: Success
@@ -252,21 +300,43 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/ListResponse'
-                - type: object
-                  properties:
-                    list:
-                      type: array
-                      items:
-                        $ref: '#/components/schemas/Project'
-        default: { $ref: '#/components/responses/default' }
+                  - $ref: "#/components/schemas/ListResponse"
+                  - type: object
+                    properties:
+                      list:
+                        type: array
+                        items:
+                          $ref: "#/components/schemas/Project"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
+
+  /api/me/projects/{project_id}:
+    parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: integer
+        required: true
+    delete:
+      tags:
+        - Me
+        - Projects
+      operationId: exitProject
+      summary: Me 主动退出 Project
+      responses:
+        200:
+          description: OK
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
+
   /api/users:
     post:
       tags:
-      - Users
+        - Users
       summary: 为系统添加一名 user
       description: |-
         仅 admin 用户可以添加用户
+      operationId: createUser
       requestBody:
         content:
           application/json:
@@ -274,9 +344,9 @@ paths:
               type: object
               properties:
                 username:
-                  $ref: '#/components/schemas/username'
+                  $ref: "#/components/schemas/username"
                 password:
-                  $ref: '#/components/schemas/password'
+                  $ref: "#/components/schemas/password"
       responses:
         200:
           description: Success
@@ -286,36 +356,42 @@ paths:
                 type: object
                 properties:
                   username:
-                    $ref: '#/components/schemas/username'
-        default: { $ref: '#/components/responses/default' }
+                    $ref: "#/components/schemas/username"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
     get:
       tags:
-      - Users
+        - Users
       summary: Returns a list of users.
       description: |-
-        - 当 me == admin，可以查询所有 users 列表。
+        - 当 me == admin, 可以查询所有 users 列表。
         - 当 me == 普通用户，仅能查看同处一个 Team 的 users 列表。
+      operationId: listUsers
       parameters:
-      - in: query
-        name: team_id
-        description: |-
-          - 该参数可以多传。
-          - 该参数旨在用 team_id 筛选 users 列表。
-        schema:
-          type: array
-          items:
-            type: integer
-        required: false
-      - in: query
-        name: role_name
-        schema:
-          type: array
-          items:
-            type: integer
-        description: |-
-          - 该参数可以多传。
-          - 该参数旨在用 role_name 筛选 users 列表。
-        required: false
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/page_size"
+        - $ref: "#/components/parameters/search_username"
+        - in: query
+          name: team_id
+          description: |-
+            - 该参数可以多传。
+            - 该参数旨在用 team_id 筛选 users 列表。
+          schema:
+            type: array
+            items:
+              type: integer
+          required: false
+        - in: query
+          name: role_name
+          schema:
+            type: array
+            items:
+              type: integer
+          description: |-
+            - 该参数可以多传。
+            - 该参数旨在用 role_name 筛选 users 列表。
+          required: false
       responses:
         200:
           description: A JSON array of user names
@@ -324,16 +400,20 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/User'
-        default: { $ref: '#/components/responses/default' }
+                  $ref: "#/components/schemas/User"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
   /api/users/{user_id}:
     parameters:
-    - in: path
-      name: user_id
-      required: true
+      - in: path
+        name: user_id
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
     get:
       tags:
-      - Users
+        - Users
+      operationId: getUser
       summary: 查询用户详情
       description: |-
         - 如果 me 与被查用户不同处于任何 Team，则无权限。
@@ -343,15 +423,17 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/User'
-        default: { $ref: '#/components/responses/default' }
+                $ref: "#/components/schemas/User"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
     delete:
       tags:
-      - User
+        - User
       summary: 删除用户
       description: |-
         - 仅 admin 用户可以删除普通用户
         - admin 用户不能被删除
+      operationId: deleteUser
       responses:
         200:
           description: Success
@@ -359,33 +441,30 @@ paths:
             application/json:
               schema:
                 type: object
-        default: { $ref: '#/components/responses/default' }
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
 
   /api/users/{user_id}/teams:
     parameters:
-    - in: path
-      name: user_id
-      required: true
+      - in: path
+        name: user_id
+        required: true
+        schema:
+          type: integer
     get:
       tags:
-      - User
-      - Team
+        - User
+        - Team
       summary: 查询用户加入的 Teams 列表
       description: |-
         - admin 用户可以查看所有用户所有列表。
         - 普通用户仅能查看同 Team 下用户的 teams 列表。
         - 普通用户能查看其他用户的 teams 列表不应当超过 Me 自身的列表范围，比如 Me 所在的 teams 为 [a, b], user 所在的 teams 为 [a, c], 那么 Me 查询该接口仅返回 [a]。
+      operationId: getUserTeams
       parameters:
-      - in: query
-        name: or
-        required: false
-      - in: query
-        name: page
-        required: false
-      - in: query
-        name: page_size
-        required: false
-      - $ref: '#/components/schemas/username'
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/page_size"
       responses:
         200:
           description: OK
@@ -393,22 +472,26 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/ListResponse'
+                  - $ref: "#/components/schemas/ListResponse"
                 properties:
                   list:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Team'
-        default: { $ref: '#/components/responses/default' }
+                      $ref: "#/components/schemas/Team"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
   /api/users/{user_id}/projects:
     parameters:
-    - in: path
-      name: user_id
-      required: true
+      - in: path
+        name: user_id
+        required: true
+        schema:
+          type: integer
     get:
+      operationId: getUserProjects
       tags:
-      - Users
-      - Projects
+        - Users
+        - Projects
       summary: 查询用户参与的项目
       description: |-
         - admin 可以查看所有用户的所有参与项目的列表。
@@ -421,25 +504,27 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/ListResponse'
+                  - $ref: "#/components/schemas/ListResponse"
                 properties:
                   list:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Project'
-        default: { $ref: '#/components/responses/default' }
+                      $ref: "#/components/schemas/Project"
+        400: { $ref: "#/components/responses/default" }
+        default: { $ref: "#/components/responses/default" }
   /api/teams:
     get:
       tags:
-      - Teams
+        - Teams
       summary: 查询所有 teams
       description: |-
         - admin: 查询所有 teams.
-        - 普通用户：同 `GET /api/me/teams`.
+        - 普通用户: 同 `GET /api/me/teams`.
+      operationId: listTeams
       parameters:
-      - $ref: '#/components/parameters/order_by'
-      - $ref: '#/components/parameters/page'
-      - $ref: '#/components/parameters/page_size'
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/page_size"
       responses:
         200:
           description: OK
@@ -447,21 +532,23 @@ paths:
             application/json:
               schema:
                 allOf:
-                - $ref: '#/components/schemas/ListResponse'
+                  - $ref: "#/components/schemas/ListResponse"
                 properties:
                   list:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Team'
+                      $ref: "#/components/schemas/Team"
+        400: { $ref: "#/components/responses/default" }
         default:
-          $ref: '#/components/responses/default'
+          $ref: "#/components/responses/default"
 
     post:
       tags:
-      - Teams
+        - Teams
       summary: 创建一个 Team
       description: |-
         - 仅 admin 可以创建 Team。
+      operationId: createTeam
       requestBody:
         content:
           application/json:
@@ -469,77 +556,449 @@ paths:
               type: object
               properties:
                 name:
-                  $ref: '#/components/schemas/Team/properties/name'
+                  $ref: "#/components/schemas/Team/properties/name"
                 desc:
-                  $ref: '#/components/schemas/Team/properties/desc'
+                  $ref: "#/components/schemas/Team/properties/desc"
       responses:
         200:
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Team'
+                $ref: "#/components/schemas/Team"
+        400: { $ref: "#/components/responses/default" }
         default:
-          $ref: '#/components/responses/default'
-
-
+          $ref: "#/components/responses/default"
 
   /api/teams/{team_id}:
     parameters:
-    - in: path
-      name: team_id
-      required: true
+      - in: path
+        name: team_id
+        required: true
+        schema:
+          type: integer
     get:
+      operationId: getTeam
       summary: 查询 Team 详情。
       description: |-
         - admin 可以查询所有 Team 的详情。
         - 普通用户仅能查询 Me 所参与的 Team 的详情。
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/Team"
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          $ref: "#/components/schemas/Project/properties/id"
+                        name:
+                          $ref: "#/components/schemas/Project/properties/name"
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
+
     put:
+      operationId: updateTeam
       summary: 修改 Team 属性
       description: |-
         - admin 用户可以修改 Team 属性。
         - Team Leader 可以修改 Team 属性。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  $ref: "#/components/schemas/Team/properties/name"
+                desc:
+                  $ref: "#/components/schemas/Team/properties/desc"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
+
     patch:
+      operationId: updateTeamLeader
       summary: 仅用户修改 Team Leader
       description: |-
         - admin 可以修改 Team Leader。
         - 现任 Team Leader 可以修改 Team Leader 为 Team 下的其他 User。
         - Team 一开始可以没有 Leader。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                leader:
+                  description: 新的 Leader 的 user_id
+                  $ref: "#/components/schemas/id"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
+
     delete:
+      operationId: deleteTeam
       summary: 删除 Team
       description: |-
         - admin 用户可以删除 Team。
         - Team Leader 可以删除 Team。
+      responses:
+        200:
+          description: OK
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
+
   /api/teams/{team_id}/users:
     parameters:
-    - in: path
-      name: team_id
-      required: true
+      - in: path
+        name: team_id
+        required: true
+        schema:
+          $ref: "#/components/schemas/id"
     get:
+      operationId: getTeamUsers
       summary: 查询 Team 下成员列表
       description: |-
         - 继承父路径权限。
+      parameters:
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/page_size"
+        - $ref: "#/components/parameters/search_username"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ListResponse"
+                properties:
+                  list:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/User"
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
+
     post:
+      operationId: addTeamUser
       summary: 为 Team 添加成员。
-      description:
+      description: |-
+        - admin 可以为 Team 添加成员。
+        - Team Leader 可以为 Team 添加成员。注意: 被添加的 User 应当是 Me 可见的。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  $ref: "#/components/schemas/User/properties/id"
+      responses:
+        200:
+          description: OK
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
+
   /api/teams/{team_id}/users/{user_id}:
     parameters:
-    - in: path
-      name: team_id
-      required: true
-
+      - in: path
+        name: team_id
+        required: true
+        schema:
+          type: integer
+      - in: path
+        name: user_id
+        required: true
+        schema:
+          type: integer
     delete:
+      tags:
+        - Team
+        - User
+      summary: 从 Team 中移除 User
+      description: |-
+        - admin 可以移除任何 Team 中的任何 User。
+        - Team Leader 可以移除本 Team 中的任何 User(包括自身)。
+      operationId: removeTeamUser
+      responses:
+        200:
+          description: OK
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
 
   /api/teams/{team_id}/projects:
+    description: |-
+      - Team 与 Project 是有层级关系的。一个 Team 下可以有多个 projects，一个 Project 必然属于且只能属于一个 Team。对 Team 和 Project 的操作应当注意它们互相之间的级联关系。
     parameters:
-    - in: path
-      name: team_id
-      required: true
+      - in: path
+        name: team_id
+        required: true
+        schema:
+          type: integer
     get:
+      operationId: getTeamProjects
+      tags:
+        - Teams
+        - Projects
+      summary: 查询 Team 下的 projects 列表。
+      description: |-
+        - admin 可以查询任何 Team 下的所有 projects 列表。
+        - 普通用户可以查询其所在 Team 下的所有 projects 列表。
+      parameters:
+        - $ref: "#/components/parameters/order_by"
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/page_size"
+        - $ref: "#/components/parameters/search_project_name"
+        - $ref: "#/components/parameters/part_in"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ListResponse"
+                properties:
+                  list:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+        400: { $ref: "#/components/responses/default" }
+        default:
+          $ref: "#/components/responses/default"
     post:
+      tags:
+        - Team
+        - Project
+      summary: 为 Team 添加一个 Project
+      description: |-
+        - admin 可以为任何 Team 添加 Project。
+        - Team Leader 可以为本项目添加 Project。
+        - 创建时 status 默认为 `WAIT_FOR_SCHEDULE`
+      operationId: createTeamProject
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  $ref: "#/components/schemas/Project/properties/name"
+                desc:
+                  $ref: "#/components/schemas/Project/properties/desc"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
 
+  /api/projects/{project_id}:
+    get:
+      operationId: getProject
+      tags:
+        - Projects
+      summary: 查询 Project 详情。
+      description: |-
+        - admin 可以查询所有 Project 详情。
+        - Team Leader 可以查询其 Team 下所有 Project 详情。
+        - 普通用户可以查询其参与了的 Project 的详情。
+      parameters:
+        - name: project_id
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/id"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
+  /api/projects/{project_id}/users:
+    parameters:
+      - name: project_id
+        in: path
+        schema:
+          type: integer
+    post:
+      tags:
+        - Projects
+        - Users
+      operationId: addProjectUser
+      summary: 为 Project 添加参与人员。
+      description: |-
+        - admin 可以为 Team 添加参与人员。
+        - Team Leader 可以为 Team 下的 Project 添加参与人员。注意：被添加的 User 应当是 Me 可见的。
+        - 如果 User 被添加到 Project 时还不是 Team 成员，则自动成员 Team 成员。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  $ref: "#/components/schemas/User/properties/id"
+      responses:
+        200:
+          description: OK
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
 
-  /api/projects/{}:
+  /api/projects/{project_id}/users/{user_id}:
+    parameters:
+      - in: path
+        name: project_id
+        schema:
+          type: integer
+      - in: path
+        name: user_id
+        schema:
+          type: integer
+    delete:
+      tags:
+        - User
+        - Projects
+      operationId: removeProjectUser
+      summary: 清退项目的参与者
+      description: |-
+        - Project 与 User 无级联关系，从 Project 中清退 User 不会造成该 User 退出 Team, 更不会造成该 User 被删除。
+      responses:
+        200:
+          description: OK
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
+
+  /api/roles:
+    get:
+      tags:
+        - Roles
+      operationId: listRoles
+      summary: 查询所有 Roles
+      description: |-
+        Role 是全局维表, 所有用户都可以查询 Roles 列表。
+        该资源列表不支持分页。
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ListResponse"
+                properties:
+                  list:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Role"
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
+    post:
+      tags:
+        - Roles
+      operationId: createRole
+      summary: 创建 Role
+      description: |-
+        - 系统初始化时，应当初始化内置 3 个 Roles:
+          - {"id": 1, "type": "System", "name": "admin"} 有且仅有 admin 是此角色；
+          - {"id": 2, "type": "System", "name": "team leader"} 当用户至少是一个 Team 的 Leader 时自动拥有此角色；
+          - {"id": 3, "type": "System", "name": "normal user"} 每个用户至少有一个角色，当用户无其他角色时退化为此角色。
+        - 只有 admin 可以创建 Role。后天创建的 Role 的 type 为 `Custom`。
+        - Role 与 User 是多对多关系，即一个 User 可以有多个 Role，多个用户可以有同一个 Role。
+        - Role 与 User 没有层级关系，删除 Role 资源要删除相关 User 的 Role 属性，但不会级联删除 User。
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  $ref: "#/components/schemas/Role/properties/name"
+                desc:
+                  $ref: "#/components/schemas/Role/properties/desc"
+      responses:
+        200:
+          description: OK
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ListResponse"
+                properties:
+                  list:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Role"
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
+  /api/roles/{role_id}:
+    parameters:
+      - in: path
+        name: role_id
+        schema:
+          type: integer
+    delete:
+      tags:
+        - Roles
+      operationId: deleteRole
+      summary: 删除 Role
+      description: |-
+        - 仅 admin 能删除 Role
+        - 删除 Role 不会级联删除相关 User。
+      responses:
+        200:
+          $ref: "#/components/responses/default"
+        400:
+          $ref: "#/components/responses/default"
+        default:
+          $ref: "#/components/responses/default"
 
 components:
   schemas:
@@ -557,10 +1016,10 @@ components:
           readOnly: true
         username:
           allOf:
-          - $ref: '#/components/schemas/username'
-          - readOnly: true
+            - $ref: "#/components/schemas/username"
+            - readOnly: true
         email:
-          $ref: '#/components/schemas/email'
+          $ref: "#/components/schemas/email"
         nickname:
           description: |-
             用户昵称。
@@ -570,14 +1029,14 @@ components:
           description: 用户头像。是 base64 编码字符串或 URL。
           type: string
         roles:
-          description: 用户的角色（可以含多个）
+          description: 用户的角色(可以含多个)
           type: array
           items:
-            $ref: '#/components/schemas/Role'
+            $ref: "#/components/schemas/Role"
         crated_at:
-          $ref: '#/components/schemas/timestamp'
+          $ref: "#/components/schemas/timestamp"
         updated_at:
-          $ref: '#/components/schemas/timestamp'
+          $ref: "#/components/schemas/timestamp"
     Role:
       type: object
       properties:
@@ -585,22 +1044,29 @@ components:
           type: integer
         name:
           type: string
+        type:
+          type: string
+          enum:
+            - System
+            - Custom
+        desc:
+          type: string
     Team:
       type: object
       properties:
         id:
-          $ref: '#/components/schemas/id'
+          $ref: "#/components/schemas/id"
         name:
           type: string
         desc:
           description: Team 描述
           type: string
         leader:
-          $ref: '#/components/schemas/User'
+          $ref: "#/components/schemas/User"
         created_at:
-          $ref: '#/components/schemas/timestamp'
+          $ref: "#/components/schemas/timestamp"
         updated_at:
-          $ref: '#/components/schemas/timestamp'
+          $ref: "#/components/schemas/timestamp"
     Project:
       type: object
       properties:
@@ -608,17 +1074,16 @@ components:
           type: integer
         name:
           type: integer
-        description:
+        desc:
           type: string
         status:
           type: string
-          enum: [ WAIT_FOR_SCHEDULE, IN_PROGRESS, FINISHED ]
-        team_id:
-          type: integer
+          enum: [WAIT_FOR_SCHEDULE, IN_PROGRESS, FINISHED]
+          default: WAIT_FOR_SCHEDULE
         created_at:
-          $ref: '#/components/schemas/timestamp'
+          $ref: "#/components/schemas/timestamp"
         updated_at:
-          $ref: '#/components/schemas/timestamp'
+          $ref: "#/components/schemas/timestamp"
     ListResponse:
       type: object
       properties:
@@ -626,19 +1091,19 @@ components:
           type: integer
         list:
           type: array
-      required: [ total, list ]
+      required: [total, list]
       additionalProperties: false
     id:
       type: integer
     username:
       type: string
-      pattern: '^[a-zA-Z0-9_-]{4,30}$'
+      pattern: "^[a-zA-Z0-9_-]{4,30}$"
     email:
       type: string
       pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
     password:
       type: string
-      pattern: '^[a-zA-Z0-9_-]{8,30}$'
+      pattern: "^[a-zA-Z0-9_-]{8,30}$"
     timestamp:
       description: 用户创建时间
       type: integer
@@ -650,6 +1115,9 @@ components:
       name: order_by
       schema:
         type: string
+        enum:
+          - create_at
+          - updated_at
       required: false
     page:
       in: query
@@ -669,24 +1137,47 @@ components:
       required: false
       schema:
         type: string
+    search_username:
+      in: query
+      name: name
+      description: |-
+        用 `username` 或 `nickname` 模糊搜索。
+        注意: 当客户端传入该参数时，要对 `username` 和 `nickname` 都进行模糊搜索。
+      required: false
+      schema:
+        type: string
+    search_project_name:
+      in: query
+      name: name
+      description: 用 project `name` 模糊搜索
+      required: false
+      schema:
+        type: string
+    part_in:
+      in: query
+      name: part_in
+      description: |-
+        `true`: 筛选 Me 参与的 projects
+        `false`: 筛选 Me 未参与的 projects
+        不传: 不作此项筛选
+      schema:
+        type: boolean
     start_at:
       in: query
       name: start_at
       required: false
       schema:
-        $ref: '#/components/schemas/timestamp'
+        $ref: "#/components/schemas/timestamp"
     end_at:
       in: query
       name: end_at
       required: false
       schema:
-        $ref: '#/components/schemas/timestamp'
+        $ref: "#/components/schemas/timestamp"
   responses:
-    empty:
-      description: OK
     default:
       description: OK
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: "#/components/schemas/Error"
