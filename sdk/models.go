@@ -63,8 +63,8 @@ type AuditLog struct {
 
 // ListResponse represents a paginated list response
 type ListResponse struct {
-	Total int         `json:"total"`
-	List  interface{} `json:"list"`
+	Total int `json:"total"`
+	List  any `json:"list"`
 }
 
 // UsersListResponse represents a users list response
