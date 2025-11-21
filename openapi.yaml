@@ -134,6 +134,11 @@ paths:
       description: |-
         用户正确登录后,应当通过 Set-Cookie 返回登录相关凭证。
         客户端后续取用 Cookie 对其他接口进行访问。
+        
+        **首次登录限制:**
+        - 使用初始密码首次登录后,用户必须先修改密码才能访问其他受保护的接口。
+        - 在修改密码前访问其他接口将返回 403 错误,提示需要修改密码。
+        - 这一限制适用于所有用户,包括 admin 用户。
       security: []
       requestBody:
         required: true
@@ -235,6 +240,9 @@ paths:
       tags:
         - Me
       summary: 用户修改自身密码
+      description: |-
+        用户修改密码后,当前会话将立即失效,需要使用新密码重新登录。
+        这是一项安全措施,确保密码修改后旧的会话凭证不再有效。
       requestBody:
         required: true
         content:

@@ -141,16 +141,27 @@ type AuditsAPI interface {
 	List(params *ListParams) (*AuditsListResponse, error)
 }
 
-// NewSDK creates a new SDK instance
+var globalSDK SDK
+
+// NewSDK creates a new SDK instance and sets it as global singleton
 func NewSDK(addr string) SDK {
 	jar, _ := cookiejar.New(nil)
 	baseURL, _ := url.Parse(strings.TrimRight(addr, "/"))
-	return &sdk{
+	globalSDK = &sdk{
 		baseURL: baseURL,
 		client: &http.Client{
 			Jar: jar,
 		},
 	}
+	return globalSDK
+}
+
+// GetSDK returns the global SDK singleton
+func GetSDK() SDK {
+	if globalSDK == nil {
+		panic("SDK not initialized, call NewSDK first")
+	}
+	return globalSDK
 }
 
 type sdk struct {
