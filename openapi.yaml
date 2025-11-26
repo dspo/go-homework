@@ -54,7 +54,7 @@ info:
     name: MIT
     url: https://mit-license.org/
 servers:
-  - url: https://api.example.com/v1
+  - url: https://localhost:8080
     description: Production server
 security:
   - cookieAuth: []
