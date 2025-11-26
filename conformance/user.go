@@ -1,9 +1,13 @@
 package conformance
 
 import (
-	sdk "github.com/dspo/go-homework/sdk"
+	"strings"
+	"time"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/dspo/go-homework/sdk"
 )
 
 // Helper function to login as admin
@@ -14,7 +18,7 @@ func loginAsAdmin() {
 }
 
 // Helper function to create user and change password
-func createAndSetupUser(username, password string) *sdk.User {
+func createAndSetupUser(username, password string) (*sdk.User, string) {
 	s := sdk.GetSDK()
 	loginAsAdmin()
 
@@ -32,7 +36,7 @@ func createAndSetupUser(username, password string) *sdk.User {
 	err = s.Auth().LoginWithUsername(username, newPass)
 	Expect(err).NotTo(HaveOccurred())
 
-	return user
+	return user, newPass
 }
 
 var _ = Describe("Authentication", func() {
@@ -392,136 +396,485 @@ var _ = Describe("Users", func() {
 	})
 
 	Context("User Visibility", Ordered, func() {
-		var _, _ int    // teamA, teamB - will be assigned in actual implementation
-		var _, _, _ int // userA, userB, userC - will be assigned in actual implementation
+		var teamAID, teamBID int
+		var userA, userB, userC *sdk.User
+		var passA, passC string
 
 		BeforeAll(func() {
-			By("Admin creates teamA and teamB")
-			By("Admin creates userA, userB, userC")
-			By("Add userA to teamA")
-			By("Add userB to teamB")
-			By("Add userC to both teamA and teamB")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+
+			tA, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("teamA")})
+			Expect(err).NotTo(HaveOccurred())
+			teamAID = tA.ID
+
+			tB, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("teamB")})
+			Expect(err).NotTo(HaveOccurred())
+			teamBID = tB.ID
+
+			userA, passA = createAndSetupUser(helperUniqueName("userA"), "passA")
+			userB, _ = createAndSetupUser(helperUniqueName("userB"), "passB")
+			userC, passC = createAndSetupUser(helperUniqueName("userC"), "passC")
+
+			loginAsAdmin()
+			Expect(s.Teams().AddUser(teamAID, userA.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamBID, userB.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamAID, userC.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamBID, userC.ID)).NotTo(HaveOccurred())
 		})
 
 		AfterAll(func() {
-			By("Delete teams (cascade)")
-			By("Delete test users")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			_ = s.Teams().Delete(teamAID)
+			_ = s.Teams().Delete(teamBID)
+			_ = s.Users().Delete(userA.ID)
+			_ = s.Users().Delete(userB.ID)
+			_ = s.Users().Delete(userC.ID)
 		})
 
 		It("should see users in same team", func() {
-			By("UserA login (in teamA)")
-			By("GET /api/users")
-			By("Should see userC (both in teamA)")
-			By("Should NOT see userB (not in same team)")
+			s := sdk.GetSDK()
+			Expect(s.Auth().LoginWithUsername(userA.Username, passA)).NotTo(HaveOccurred())
+			users, err := s.Users().List(nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			visibleIDs := make(map[int]bool)
+			for _, u := range users.List {
+				visibleIDs[u.ID] = true
+			}
+
+			Expect(visibleIDs[userA.ID]).To(BeTrue())
+			Expect(visibleIDs[userC.ID]).To(BeTrue())
+			Expect(visibleIDs[userB.ID]).To(BeFalse())
 		})
 
 		It("should see users in multiple teams", func() {
-			By("UserC login (in teamA and teamB)")
-			By("GET /api/users")
-			By("Should see both userA and userB")
+			s := sdk.GetSDK()
+			Expect(s.Auth().LoginWithUsername(userC.Username, passC)).NotTo(HaveOccurred())
+			users, err := s.Users().List(nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			visibleIDs := make(map[int]bool)
+			for _, u := range users.List {
+				visibleIDs[u.ID] = true
+			}
+
+			Expect(visibleIDs[userA.ID]).To(BeTrue())
+			Expect(visibleIDs[userB.ID]).To(BeTrue())
+			Expect(visibleIDs[userC.ID]).To(BeTrue())
 		})
 	})
 
 	Context("Me APIs", func() {
 		It("should get current user info", func() {
-			By("User login")
-			By("GET /api/me")
-			By("Should return current user object with roles")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_user"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			me, err := s.Me().Get()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(me.ID).To(Equal(user.ID))
+			Expect(me.Username).To(Equal(user.Username))
+			Expect(me.Roles).NotTo(BeEmpty())
 		})
 
 		It("should update current user info", func() {
-			By("User login")
-			By("PUT /api/me with new email, nickname, logo")
-			By("Should return 200 with updated user")
-			By("Verify changes by GET /api/me")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_update"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			email := helperUniqueName("me_email") + "@example.com"
+			nickname := helperUniqueName("nick")
+			logo := "https://logo.example.com/" + helperUniqueName("logo")
+			updated, err := s.Me().Update(&sdk.UpdateMeRequest{
+				Email:    helperStringPtr(email),
+				Nickname: helperStringPtr(nickname),
+				Logo:     helperStringPtr(logo),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(updated.Email).NotTo(BeNil())
+			Expect(*updated.Email).To(Equal(email))
+			Expect(updated.Nickname).NotTo(BeNil())
+			Expect(*updated.Nickname).To(Equal(nickname))
+			Expect(updated.Logo).NotTo(BeNil())
+			Expect(*updated.Logo).To(Equal(logo))
+
+			me, err := s.Me().Get()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(me.Email).NotTo(BeNil())
+			Expect(*me.Email).To(Equal(email))
+			Expect(me.Nickname).NotTo(BeNil())
+			Expect(*me.Nickname).To(Equal(nickname))
 		})
 
 		It("should list my teams", func() {
-			By("User login (in teamA and teamB)")
-			By("GET /api/me/teams")
-			By("Should return both teams")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_teams"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			teamA, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("teamA")})
+			Expect(err).NotTo(HaveOccurred())
+			teamB, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("teamB")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(teamA.ID)
+				_ = s.Teams().Delete(teamB.ID)
+			})
+
+			Expect(s.Teams().AddUser(teamA.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamB.ID, user.ID)).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			teams, err := s.Me().ListTeams(nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teams.Total).To(Equal(2))
+			ids := []int{}
+			for _, t := range teams.List {
+				ids = append(ids, t.ID)
+			}
+			Expect(ids).To(ContainElements(teamA.ID, teamB.ID))
 		})
 
 		It("should list my leading teams", func() {
-			By("Team leader login")
-			By("GET /api/me/teams?leading=true")
-			By("Should return only teams where user is leader")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_lead"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			teamLead, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_lead")})
+			Expect(err).NotTo(HaveOccurred())
+			teamMember, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_member")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(teamLead.ID)
+				_ = s.Teams().Delete(teamMember.ID)
+			})
+
+			Expect(s.Teams().AddUser(teamLead.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamMember.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().UpdateLeader(teamLead.ID, helperIntPtr(user.ID))).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			leading := true
+			teams, err := s.Me().ListTeams(&leading)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teams.Total).To(Equal(1))
+			Expect(teams.List[0].ID).To(Equal(teamLead.ID))
 		})
 
 		It("should list my non-leading teams", func() {
-			By("User login (leader of teamA, member of teamB)")
-			By("GET /api/me/teams?leading=false")
-			By("Should return only teamB")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_nonlead"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			teamLeader, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_leader")})
+			Expect(err).NotTo(HaveOccurred())
+			teamMember, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_member")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(teamLeader.ID)
+				_ = s.Teams().Delete(teamMember.ID)
+			})
+
+			Expect(s.Teams().AddUser(teamLeader.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamMember.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().UpdateLeader(teamLeader.ID, helperIntPtr(user.ID))).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			leading := false
+			teams, err := s.Me().ListTeams(&leading)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teams.Total).To(Equal(1))
+			Expect(teams.List[0].ID).To(Equal(teamMember.ID))
 		})
 
 		It("should exit from team", func() {
-			By("User login (in teamA)")
-			By("DELETE /api/me/teams/{teamA_id}")
-			By("Should return 200")
-			By("GET /api/me/teams should not include teamA")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_exit_team"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_exit")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(team.ID)
+			})
+
+			Expect(s.Teams().AddUser(team.ID, user.ID)).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			Expect(s.Me().ExitTeam(team.ID)).NotTo(HaveOccurred())
+			teams, err := s.Me().ListTeams(nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teams.Total).To(Equal(0))
 		})
 
 		It("should clear leader when leader exits team", func() {
-			By("Leader login")
-			By("DELETE /api/me/teams/{team_id}")
-			By("Should return 200")
-			By("GET /api/teams/{team_id} should show leader is null")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_exit_leader"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_leader_exit")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(team.ID)
+			})
+
+			Expect(s.Teams().AddUser(team.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().UpdateLeader(team.ID, helperIntPtr(user.ID))).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			Expect(s.Me().ExitTeam(team.ID)).NotTo(HaveOccurred())
+
+			loginAsAdmin()
+			teamInfo, err := s.Teams().Get(team.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teamInfo.Leader).To(BeNil())
 		})
 
 		It("should list my projects", func() {
-			By("User login (in projectA and projectB)")
-			By("GET /api/me/projects")
-			By("Should return both projects")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_projects"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_projects")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(team.ID)
+			})
+
+			Expect(s.Teams().AddUser(team.ID, user.ID)).NotTo(HaveOccurred())
+			projA, err := s.Teams().CreateProject(team.ID, &sdk.CreateProjectRequest{Name: helperUniqueName("projectA")})
+			Expect(err).NotTo(HaveOccurred())
+			projB, err := s.Teams().CreateProject(team.ID, &sdk.CreateProjectRequest{Name: helperUniqueName("projectB")})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s.Projects().AddUser(projA.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Projects().AddUser(projB.ID, user.ID)).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			projects, err := s.Me().ListProjects(nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(projects.Total).To(Equal(2))
+			ids := []int{}
+			for _, p := range projects.List {
+				ids = append(ids, p.ID)
+			}
+			Expect(ids).To(ContainElements(projA.ID, projB.ID))
 		})
 
 		It("should filter projects by team", func() {
-			By("User login")
-			By("GET /api/me/projects?team_id=1&team_id=2")
-			By("Should return only projects in team 1 and 2")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_projects_filter"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			teamA, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_filter_a")})
+			Expect(err).NotTo(HaveOccurred())
+			teamB, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_filter_b")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(teamA.ID)
+				_ = s.Teams().Delete(teamB.ID)
+			})
+
+			Expect(s.Teams().AddUser(teamA.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamB.ID, user.ID)).NotTo(HaveOccurred())
+			projA, err := s.Teams().CreateProject(teamA.ID, &sdk.CreateProjectRequest{Name: helperUniqueName("projA")})
+			Expect(err).NotTo(HaveOccurred())
+			projB, err := s.Teams().CreateProject(teamB.ID, &sdk.CreateProjectRequest{Name: helperUniqueName("projB")})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s.Projects().AddUser(projA.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Projects().AddUser(projB.ID, user.ID)).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			paramsA := &sdk.ListParams{TeamIDs: []int{teamA.ID}}
+			projectsA, err := s.Me().ListProjects(paramsA)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(projectsA.Total).To(Equal(1))
+			Expect(projectsA.List[0].ID).To(Equal(projA.ID))
+
+			paramsBoth := &sdk.ListParams{TeamIDs: []int{teamA.ID, teamB.ID}}
+			projectsBoth, err := s.Me().ListProjects(paramsBoth)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(projectsBoth.Total).To(Equal(2))
+			ids := []int{}
+			for _, p := range projectsBoth.List {
+				ids = append(ids, p.ID)
+			}
+			Expect(ids).To(ContainElements(projA.ID, projB.ID))
 		})
 
 		It("should exit from project", func() {
-			By("User login (in projectA)")
-			By("DELETE /api/me/projects/{projectA_id}")
-			By("Should return 200")
-			By("GET /api/me/projects should not include projectA")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("me_exit_project"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_project_exit")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(team.ID)
+			})
+
+			Expect(s.Teams().AddUser(team.ID, user.ID)).NotTo(HaveOccurred())
+			project, err := s.Teams().CreateProject(team.ID, &sdk.CreateProjectRequest{Name: helperUniqueName("proj_exit")})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s.Projects().AddUser(project.ID, user.ID)).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			Expect(s.Me().ExitProject(project.ID)).NotTo(HaveOccurred())
+			projects, err := s.Me().ListProjects(nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(projects.Total).To(Equal(0))
+
+			loginAsAdmin()
+			teamUsers, err := s.Teams().ListUsers(team.ID, nil)
+			Expect(err).NotTo(HaveOccurred())
+			found := false
+			for _, u := range teamUsers.List {
+				if u.ID == user.ID {
+					found = true
+					break
+				}
+			}
+			Expect(found).To(BeTrue(), "exiting project should not remove user from team")
 		})
 	})
 
 	Context("User Teams and Projects", Ordered, func() {
-		var _, _, _ int // userID, teamID, projectID - will be assigned in actual implementation
+		var targetUser, viewerUser *sdk.User
+		var viewerPass string
+		var teamCommonID, teamPrivateID int
+		var projectCommonID, projectPrivateID int
 
 		BeforeAll(func() {
-			By("Admin creates user, team, and project")
-			By("Add user to team and project")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+
+			var err error
+			targetUser, _ = createAndSetupUser(helperUniqueName("user_target"), "pass")
+			viewerUser, viewerPass = createAndSetupUser(helperUniqueName("user_viewer"), "pass")
+
+			loginAsAdmin()
+			teamCommon, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_common")})
+			Expect(err).NotTo(HaveOccurred())
+			teamPrivate, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_private")})
+			Expect(err).NotTo(HaveOccurred())
+			teamCommonID = teamCommon.ID
+			teamPrivateID = teamPrivate.ID
+
+			Expect(s.Teams().AddUser(teamCommonID, targetUser.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamPrivateID, targetUser.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(teamCommonID, viewerUser.ID)).NotTo(HaveOccurred())
+
+			projectCommon, err := s.Teams().CreateProject(teamCommonID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_common")})
+			Expect(err).NotTo(HaveOccurred())
+			projectPrivate, err := s.Teams().CreateProject(teamPrivateID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_private")})
+			Expect(err).NotTo(HaveOccurred())
+			projectCommonID = projectCommon.ID
+			projectPrivateID = projectPrivate.ID
+
+			Expect(s.Projects().AddUser(projectCommonID, targetUser.ID)).NotTo(HaveOccurred())
+			Expect(s.Projects().AddUser(projectPrivateID, targetUser.ID)).NotTo(HaveOccurred())
+			Expect(s.Projects().AddUser(projectCommonID, viewerUser.ID)).NotTo(HaveOccurred())
 		})
 
 		AfterAll(func() {
-			By("Cleanup resources")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			_ = s.Teams().Delete(teamCommonID)
+			_ = s.Teams().Delete(teamPrivateID)
+			_ = s.Users().Delete(targetUser.ID)
+			_ = s.Users().Delete(viewerUser.ID)
 		})
 
 		It("should list user's teams", func() {
-			By("Admin login")
-			By("GET /api/users/{user_id}/teams")
-			By("Should return teams list")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			teams, err := s.Users().ListTeams(targetUser.ID, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teams.Total).To(Equal(2))
+			ids := []int{}
+			for _, team := range teams.List {
+				ids = append(ids, team.ID)
+			}
+			Expect(ids).To(ContainElements(teamCommonID, teamPrivateID))
 		})
 
 		It("should respect visibility when listing user teams", func() {
-			By("UserA login (in teamA with userB)")
-			By("GET /api/users/{userB_id}/teams")
-			By("Should return only teamA (intersection of their teams)")
+			s := sdk.GetSDK()
+			Expect(s.Auth().LoginWithUsername(viewerUser.Username, viewerPass)).NotTo(HaveOccurred())
+			teams, err := s.Users().ListTeams(targetUser.ID, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(teams.Total).To(Equal(1))
+			Expect(teams.List[0].ID).To(Equal(teamCommonID))
 		})
 
 		It("should list user's projects", func() {
-			By("Admin login")
-			By("GET /api/users/{user_id}/projects")
-			By("Should return projects list")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			projects, err := s.Users().ListProjects(targetUser.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(projects.Total).To(Equal(2))
+			ids := []int{}
+			for _, project := range projects.List {
+				ids = append(ids, project.ID)
+			}
+			Expect(ids).To(ContainElements(projectCommonID, projectPrivateID))
 		})
 
 		It("should respect visibility when listing user projects", func() {
-			By("UserA login (in projectA with userB)")
-			By("GET /api/users/{userB_id}/projects")
-			By("Should return only projectA (intersection)")
+			s := sdk.GetSDK()
+			Expect(s.Auth().LoginWithUsername(viewerUser.Username, viewerPass)).NotTo(HaveOccurred())
+			projects, err := s.Users().ListProjects(targetUser.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(projects.Total).To(Equal(1))
+			Expect(projects.List[0].ID).To(Equal(projectCommonID))
 		})
 	})
 })
@@ -529,156 +882,403 @@ var _ = Describe("Users", func() {
 var _ = Describe("Roles", func() {
 	Context("System Roles", func() {
 		It("should have 3 system roles initialized", func() {
-			By("GET /api/roles")
-			By("Should include: admin, team leader, normal user")
-			By("All should have type=System")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			roles, err := s.Roles().List()
+			Expect(err).NotTo(HaveOccurred())
+
+			systemNames := map[string]bool{}
+			for _, role := range roles.List {
+				if role.Type == "System" {
+					systemNames[role.Name] = true
+				}
+			}
+			Expect(systemNames["admin"]).To(BeTrue())
+			Expect(systemNames["team leader"]).To(BeTrue())
+			Expect(systemNames["normal user"]).To(BeTrue())
 		})
 
 		It("should not delete system roles", func() {
-			By("Admin login")
-			By("Try to DELETE /api/roles/{system_role_id}")
-			By("Should get 403 or 400")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			roles, err := s.Roles().List()
+			Expect(err).NotTo(HaveOccurred())
+
+			var adminRoleID int
+			for _, role := range roles.List {
+				if role.Name == "admin" {
+					adminRoleID = role.ID
+					break
+				}
+			}
+			Expect(adminRoleID).NotTo(Equal(0))
+
+			err = s.Roles().Delete(adminRoleID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Or(ContainSubstring("403"), ContainSubstring("400")))
 		})
 
 		It("should not add system roles to users manually", func() {
-			By("Admin login")
-			By("Try to POST /api/users/{user_id}/roles with system role")
-			By("Should get 403 or 400")
+			s := sdk.GetSDK()
+			user, _ := createAndSetupUser(helperUniqueName("role_sys"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			roles, err := s.Roles().List()
+			Expect(err).NotTo(HaveOccurred())
+			var adminRoleID int
+			for _, role := range roles.List {
+				if role.Name == "admin" {
+					adminRoleID = role.ID
+					break
+				}
+			}
+			Expect(adminRoleID).NotTo(Equal(0))
+
+			err = s.Users().AddRole(user.ID, adminRoleID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Or(ContainSubstring("403"), ContainSubstring("400")))
 		})
 
 		It("should auto-assign admin role to admin user", func() {
-			By("GET /api/me as admin")
-			By("Should include admin role in roles array")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			me, err := s.Me().Get()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(helperRolesContain(me.Roles, "admin")).To(BeTrue())
 		})
 
 		It("should not remove admin role from admin user", func() {
-			By("Admin login")
-			By("Try to DELETE /api/users/{admin_id}/roles/{admin_role_id}")
-			By("Should get 403 or 400")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			me, err := s.Me().Get()
+			Expect(err).NotTo(HaveOccurred())
+
+			roles, err := s.Roles().List()
+			Expect(err).NotTo(HaveOccurred())
+			var adminRoleID int
+			for _, role := range roles.List {
+				if role.Name == "admin" {
+					adminRoleID = role.ID
+					break
+				}
+			}
+			Expect(adminRoleID).NotTo(Equal(0))
+
+			err = s.Users().RemoveRole(me.ID, adminRoleID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(Or(ContainSubstring("403"), ContainSubstring("400")))
 		})
 
 		It("should auto-assign team leader role", func() {
-			By("Admin sets user as team leader")
-			By("GET /api/me as that user")
-			By("Should include 'team leader' role")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("role_leader"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_leader_role")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Teams().Delete(team.ID)
+			})
+
+			Expect(s.Teams().AddUser(team.ID, user.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().UpdateLeader(team.ID, helperIntPtr(user.ID))).NotTo(HaveOccurred())
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			me, err := s.Me().Get()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(helperRolesContain(me.Roles, "team leader")).To(BeTrue())
 		})
 
 		It("should auto-assign normal user role", func() {
-			By("Admin creates new user")
-			By("GET /api/users/{new_user_id}")
-			By("Should have 'normal user' role by default")
+			s := sdk.GetSDK()
+			user, _ := createAndSetupUser(helperUniqueName("role_normal"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			stored, err := s.Users().Get(user.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(helperRolesContain(stored.Roles, "normal user")).To(BeTrue())
 		})
 	})
 
 	Context("Custom Roles", Ordered, func() {
-		var _ int // roleID - will be assigned in actual implementation
+		var roleID int
+		var roleName string
+		var testUser *sdk.User
+		var testUserPass string
+
+		BeforeAll(func() {
+			testUser, testUserPass = createAndSetupUser(helperUniqueName("role_custom_user"), "pass")
+			DeferCleanup(func() {
+				s := sdk.GetSDK()
+				loginAsAdmin()
+				_ = s.Users().Delete(testUser.ID)
+			})
+		})
+
+		AfterAll(func() {
+			if roleID != 0 {
+				s := sdk.GetSDK()
+				loginAsAdmin()
+				_ = s.Roles().Delete(roleID)
+			}
+		})
 
 		It("should create custom role by admin", func() {
-			By("Admin login")
-			By("POST /api/roles with name and desc")
-			By("Should return role with type=Custom")
-			By("Save role ID")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			roleName = helperUniqueName("custom_role")
+			role, err := s.Roles().Create(&sdk.CreateRoleRequest{Name: roleName, Desc: helperStringPtr("custom role for tests")})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(role.Type).To(Equal("Custom"))
+			roleID = role.ID
 		})
 
 		It("should fail to create role by normal user", func() {
-			By("Normal user login")
-			By("Try to POST /api/roles")
-			By("Should get 403 Forbidden")
+			s := sdk.GetSDK()
+			Expect(s.Auth().LoginWithUsername(testUser.Username, testUserPass)).NotTo(HaveOccurred())
+			_, err := s.Roles().Create(&sdk.CreateRoleRequest{Name: helperUniqueName("custom_role_fail")})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("403"))
 		})
 
 		It("should list all roles", func() {
-			By("Any user login")
-			By("GET /api/roles")
-			By("Should return system roles + custom roles")
-			By("Response should not be paginated")
+			s := sdk.GetSDK()
+			Expect(s.Auth().LoginWithUsername(testUser.Username, testUserPass)).NotTo(HaveOccurred())
+			roles, err := s.Roles().List()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(roles.Total).To(BeNumerically(">=", 4))
+			Expect(roles.List).NotTo(BeEmpty())
+			found := false
+			for _, role := range roles.List {
+				if role.Name == roleName {
+					found = true
+					break
+				}
+			}
+			Expect(found).To(BeTrue(), "custom role should be listed")
 		})
 
 		It("should add custom role to user", func() {
-			By("Admin login")
-			By("POST /api/users/{user_id}/roles with role_id")
-			By("Should return 200")
-			By("GET /api/users/{user_id} should include new role")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			Expect(roleID).NotTo(Equal(0))
+			Expect(s.Users().AddRole(testUser.ID, roleID)).NotTo(HaveOccurred())
+			stored, err := s.Users().Get(testUser.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(helperRolesContain(stored.Roles, roleName)).To(BeTrue())
 		})
 
 		It("should remove custom role from user", func() {
-			By("Admin login")
-			By("DELETE /api/users/{user_id}/roles/{role_id}")
-			By("Should return 200")
-			By("GET /api/users/{user_id} should not include removed role")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			Expect(s.Users().RemoveRole(testUser.ID, roleID)).NotTo(HaveOccurred())
+			stored, err := s.Users().Get(testUser.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(helperRolesContain(stored.Roles, roleName)).To(BeFalse())
 		})
 
 		It("should delete custom role", func() {
-			By("Admin login")
-			By("DELETE /api/roles/{role_id}")
-			By("Should return 200")
-			By("GET /api/roles should not include deleted role")
-			By("User who had this role should not be deleted")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			Expect(s.Roles().Delete(roleID)).NotTo(HaveOccurred())
+			roles, err := s.Roles().List()
+			Expect(err).NotTo(HaveOccurred())
+			for _, role := range roles.List {
+				Expect(role.Name).NotTo(Equal(roleName))
+			}
+			stored, err := s.Users().Get(testUser.ID)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(stored.ID).To(Equal(testUser.ID))
+			roleID = 0
 		})
 	})
 
 	Context("Role Permissions", func() {
 		It("should allow only admin to manage roles", func() {
-			By("Normal user login")
-			By("Try to POST /api/roles")
-			By("Should get 403 Forbidden")
-			By("Try to DELETE /api/roles/{role_id}")
-			By("Should get 403 Forbidden")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("role_perm_user"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			loginAsAdmin()
+			role, err := s.Roles().Create(&sdk.CreateRoleRequest{Name: helperUniqueName("role_perm"), Desc: helperStringPtr("perm test")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Roles().Delete(role.ID)
+			})
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			_, err = s.Roles().Create(&sdk.CreateRoleRequest{Name: helperUniqueName("role_perm_fail")})
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("403"))
+
+			err = s.Roles().Delete(role.ID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("403"))
 		})
 
 		It("should allow only admin to assign roles", func() {
-			By("Normal user login")
-			By("Try to POST /api/users/{user_id}/roles")
-			By("Should get 403 Forbidden")
+			s := sdk.GetSDK()
+			actor, pass := createAndSetupUser(helperUniqueName("role_assign_actor"), "pass")
+			target, _ := createAndSetupUser(helperUniqueName("role_assign_target"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(actor.ID)
+				_ = s.Users().Delete(target.ID)
+			})
+
+			loginAsAdmin()
+			role, err := s.Roles().Create(&sdk.CreateRoleRequest{Name: helperUniqueName("role_assign"), Desc: helperStringPtr("assign test")})
+			Expect(err).NotTo(HaveOccurred())
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Roles().Delete(role.ID)
+			})
+
+			Expect(s.Auth().LoginWithUsername(actor.Username, pass)).NotTo(HaveOccurred())
+			err = s.Users().AddRole(target.ID, role.ID)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("403"))
 		})
 	})
 })
 
 var _ = Describe("Audits", func() {
 	Context("Audit Logs", Ordered, func() {
+		var auditKeyword string
+		var auditTeamID int
+		var auditUserID int
+		var timeStart, timeEnd int64
+
 		BeforeAll(func() {
-			By("Admin performs some audited operations")
-			By("- Create user")
-			By("- Update team")
-			By("- Delete project")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			auditKeyword = helperUniqueName("audit")
+			timeStart = time.Now().Add(-time.Minute).Unix()
+
+			user, err := s.Users().Create(auditKeyword+"_user", "auditpass")
+			Expect(err).NotTo(HaveOccurred())
+			auditUserID = user.ID
+
+			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: auditKeyword + "_team"})
+			Expect(err).NotTo(HaveOccurred())
+			auditTeamID = team.ID
+
+			desc := helperStringPtr("desc " + auditKeyword)
+			_, err = s.Teams().Update(team.ID, &sdk.UpdateTeamRequest{Name: team.Name, Desc: desc})
+			Expect(err).NotTo(HaveOccurred())
+
+			project, err := s.Teams().CreateProject(team.ID, &sdk.CreateProjectRequest{Name: auditKeyword + "_project"})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s.Projects().Delete(project.ID)).NotTo(HaveOccurred())
+
+			timeEnd = time.Now().Add(time.Minute).Unix()
+		})
+
+		AfterAll(func() {
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			_ = s.Users().Delete(auditUserID)
+			_ = s.Teams().Delete(auditTeamID)
 		})
 
 		It("should query audit logs by admin", func() {
-			By("Admin login")
-			By("GET /api/audits")
-			By("Should return audit log entries")
-			By("Each entry should have: id, content, created_at")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			logs, err := s.Audits().List(nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logs.Total).To(BeNumerically(">", 0))
+			Expect(logs.List).NotTo(BeEmpty())
+			for _, entry := range logs.List {
+				Expect(entry.ID).To(BeNumerically(">", 0))
+				Expect(entry.Content).NotTo(BeEmpty())
+				Expect(entry.CreatedAt).To(BeNumerically(">", 0))
+			}
 		})
 
 		It("should fail to query by normal user", func() {
-			By("Normal user login")
-			By("Try to GET /api/audits")
-			By("Should get 403 Forbidden")
+			s := sdk.GetSDK()
+			user, pass := createAndSetupUser(helperUniqueName("audit_normal"), "pass")
+			DeferCleanup(func() {
+				loginAsAdmin()
+				_ = s.Users().Delete(user.ID)
+			})
+
+			Expect(s.Auth().LoginWithUsername(user.Username, pass)).NotTo(HaveOccurred())
+			_, err := s.Audits().List(nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("403"))
 		})
 
 		It("should filter by keyword", func() {
-			By("Admin login")
-			By("GET /api/audits?keyword=delete")
-			By("Should return only logs containing 'delete'")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			params := &sdk.ListParams{Keyword: helperStringPtr(auditKeyword)}
+			logs, err := s.Audits().List(params)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logs.Total).To(BeNumerically(">", 0))
+			Expect(logs.List).NotTo(BeEmpty())
+			for _, entry := range logs.List {
+				Expect(strings.Contains(strings.ToLower(entry.Content), strings.ToLower(auditKeyword))).To(BeTrue())
+			}
 		})
 
 		It("should filter by time range", func() {
-			By("Admin login")
-			By("GET /api/audits?start_at={timestamp}&end_at={timestamp}")
-			By("Should return logs within time range")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			params := &sdk.ListParams{StartAt: helperInt64Ptr(timeStart), EndAt: helperInt64Ptr(timeEnd)}
+			logs, err := s.Audits().List(params)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(logs.Total).To(BeNumerically(">", 0))
+			for _, entry := range logs.List {
+				Expect(entry.CreatedAt).To(BeNumerically(">=", timeStart))
+				Expect(entry.CreatedAt).To(BeNumerically("<=", timeEnd))
+			}
 		})
 
 		It("should paginate audit logs", func() {
-			By("Admin login")
-			By("GET /api/audits?page=1&page_size=10")
-			By("Should return first 10 logs")
-			By("GET /api/audits?page=2&page_size=10")
-			By("Should return next 10 logs")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			page := 1
+			pageSize := 1
+			params := &sdk.ListParams{Page: &page, PageSize: &pageSize}
+			firstPage, err := s.Audits().List(params)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(firstPage.List).To(HaveLen(1))
+			page = 2
+			secondPage, err := s.Audits().List(params)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(secondPage.List).To(HaveLen(1))
+			Expect(firstPage.List[0].ID).NotTo(Equal(secondPage.List[0].ID))
 		})
 
 		It("should order audit logs", func() {
-			By("Admin login")
-			By("GET /api/audits?order_by=created_at")
-			By("Should return logs ordered by creation time")
+			s := sdk.GetSDK()
+			loginAsAdmin()
+			orderBy := "created_at"
+			logs, err := s.Audits().List(&sdk.ListParams{OrderBy: &orderBy})
+			Expect(err).NotTo(HaveOccurred())
+			prev := int64(0)
+			for _, entry := range logs.List {
+				Expect(entry.CreatedAt).To(BeNumerically(">=", prev))
+				prev = entry.CreatedAt
+			}
 		})
 	})
 })
