@@ -10,7 +10,7 @@ info:
     在系统初始化时,应当创建出 admin 用户: 
 
     - 用户名: admin
-    - 初始密码: admin
+    - 初始密码: adminadmin
 
     admin 用户拥有超然的权限,能查询和操作所有资源。
     例外:
