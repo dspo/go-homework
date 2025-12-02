@@ -1,0 +1,23 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ginkgo-runtime
+  namespace: go-example-e2e
+  labels:
+    testGroup: application
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: app0
+        testGroup: application
+    spec:
+      serviceAccountName: ginkgo
+      restartPolicy: Never
+      containers:
+        - name: ginkgo
+          image: ginkgo:dev
+          env:
+            - name: DB
+              value: "mysql"

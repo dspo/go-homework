@@ -265,7 +265,6 @@ paths:
       operationId: getMyTeams
       tags:
         - Me
-        - Teams
       summary: 查询用户本人加入的 teams 列表
       parameters:
         - name: leading
@@ -304,7 +303,6 @@ paths:
     delete:
       tags:
         - Me
-        - Teams
       operationId: exitTeam
       summary: Me 主动退出 Team
       description: |-
@@ -327,7 +325,6 @@ paths:
     get:
       tags:
         - Me
-        - Projects
       summary: 查询本人参与的 projects 列表
       description: |-
         示例: 
@@ -372,7 +369,6 @@ paths:
     delete:
       tags:
         - Me
-        - Projects
       operationId: exitProject
       summary: Me 主动退出 Project
       responses:
@@ -536,7 +532,6 @@ paths:
     get:
       tags:
         - Users
-        - Teams
       summary: 查询用户加入的 Teams 列表
       description: |-
         - admin 用户可以查看所有用户所有列表。
@@ -579,7 +574,6 @@ paths:
       operationId: getUserProjects
       tags:
         - Users
-        - Projects
       summary: 查询用户参与的项目
       description: |-
         - admin 可以查看所有用户的所有参与项目的列表。
@@ -617,7 +611,6 @@ paths:
     post:
       tags:
         - Users
-        - Roles
       operationId: addUserRole
       summary: 为用户添加角色
       description: |-
@@ -665,7 +658,6 @@ paths:
     delete:
       tags:
         - Users
-        - Roles
       operationId: removeUserRole
       summary: 移除用户的角色
       description: |-
@@ -939,7 +931,6 @@ paths:
       operationId: getTeamUsers
       tags:
         - Teams
-        - Users
       summary: 查询 Team 下成员列表
       description: |-
         - 继承父路径权限。
@@ -975,7 +966,6 @@ paths:
       operationId: addTeamUser
       tags:
         - Teams
-        - Users
       summary: 为 Team 添加成员。
       description: |-
         - admin 可以为 Team 添加成员。
@@ -1020,7 +1010,6 @@ paths:
     delete:
       tags:
         - Teams
-        - Users
       summary: 从 Team 中移除 User
       description: |-
         - admin 可以移除任何 Team 中的任何 User。
@@ -1054,7 +1043,6 @@ paths:
       operationId: getTeamProjects
       tags:
         - Teams
-        - Projects
       summary: 查询 Team 下的 projects 列表。
       description: |-
         - admin 可以查询任何 Team 下的所有 projects 列表。
@@ -1089,8 +1077,7 @@ paths:
           $ref: "#/components/responses/default"
     post:
       tags:
-        - Team
-        - Project
+        - Teams
       summary: 为 Team 添加一个 Project
       description: |-
         - admin 可以为任何 Team 添加 Project。
@@ -1297,7 +1284,6 @@ paths:
     get:
       tags:
         - Projects
-        - Users
       operationId: getProjectUsers
       summary: 查询 Project 参与人员列表
       description: |-
@@ -1336,7 +1322,6 @@ paths:
     post:
       tags:
         - Projects
-        - Users
       operationId: addProjectUser
       summary: 为 Project 添加参与人员。
       description: |-
@@ -1383,7 +1368,6 @@ paths:
           type: integer
     delete:
       tags:
-        - Users
         - Projects
       operationId: removeProjectUser
       summary: 清退项目的参与者

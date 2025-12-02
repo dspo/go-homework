@@ -199,7 +199,7 @@ func (s *sdk) Audits() AuditsAPI {
 
 // =============== Internal utility methods ===============
 
-func (s *sdk) doRequest(method, pathStr string, body interface{}, result interface{}) error {
+func (s *sdk) doRequest(method, pathStr string, body any, result any) error {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)

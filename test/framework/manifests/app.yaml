@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app0
+  labels:
+    testGroup: application
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app0
+  template:
+    metadata:
+      labels:
+        app: app0
+    spec:
+      containers:
+      - name: app0
+        image: go-example-app:dev
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            port: http
+            path: /healthz
+          failureThreshold: 3
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config/app/config.yaml
+          subPath: app0_config.yaml
+      volumes:
+      - name: config-volume
+        configMap:
+          name: go-example-e2e-config
+          items:
+          - key: app_config.yaml
+            path: app_config.yaml
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app0
+spec:
+  selector:
+    app: app0
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  type: ClusterIP

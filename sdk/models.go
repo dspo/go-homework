@@ -167,9 +167,9 @@ type UpdateProjectRequest struct {
 
 // PatchProjectRequest represents a request to partially update a project
 type PatchProjectRequest struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value"`
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value any    `json:"value"`
 }
 
 // CreateRoleRequest represents a request to create a role
