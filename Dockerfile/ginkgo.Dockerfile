@@ -32,9 +32,16 @@ FROM docker.cnb.cool/dspo-group/go-example2/ubuntu:latest
 WORKDIR /usr/local/huayi
 
 COPY --from=builder /go/src/app/bin/kubectl /usr/local/bin/kubectl
+
+# copy conformance.test here
 COPY --from=builder /go/src/app/test/conformance/conformance.test ./
+
+# copy e2e.test here
 COPY --from=builder /go/src/app/test/e2e/e2e.test ./
 
 ENV PATH=$PATH:/usr/local/bin
 
-ENTRYPOINT ["/usr/local/huayi/e2e.test", "--ginkgo.trace", "-test.v", "--ginkgo.v", "-test.failfast", "--ginkgo.fail-fast"]
+# the defualt ENTRYPOINT is to run e2e.test,
+# you can override it at the runtime to run conformance.test
+ENTRYPOINT ["/usr/local/huayi/e2e.test"]
+CMD ["--ginkgo.trace", "-test.v", "--ginkgo.v", "-test.failfast", "--ginkgo.fail-fast"]
