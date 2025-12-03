@@ -63,16 +63,47 @@ kind-load-images:
 	@kind load docker-image go-example-app:dev --name $(KIND_NAME)
 	@kind load docker-image ginkgo:dev --name $(KIND_NAME)
 
-e2e-run:
+pre-test-run:
 	@kubectl delete deployment -l testGroup=application --all-namespaces
 	@kubectl apply -f test/framework/manifests/namespace.yaml
 	@kubectl apply -f test/framework/manifests/configmap.yaml
 	@kubectl apply -f test/framework/manifests/ginkgo.yaml
-	@kubectl -n $(E2E_NAMESPACE) delete job ginkgo-runtime --ignore-not-found
-	@kubectl apply -f test/framework/manifests/ginkgo.job.yaml
-	@kubectl -n $(E2E_NAMESPACE) wait --for=condition=complete job/ginkgo-runtime --timeout=30m
-	@kubectl -n $(E2E_NAMESPACE) logs job/ginkgo-runtime -f
+
+e2e-run: pre-test-run
+	@kubectl run -n go-example-e2e --rm -i ginkgo --env="DB=mysql" \
+ 		--image ginkgo:dev --overrides='{"spec":{"serviceAccount":"ginkgo" }}' --restart=Never \
+ 		--command -- /bin/sh -c /usr/local/huayi/e2e.test --ginkgo.trace -test.v --ginkgo.v -test.failfast --ginkgo.fail-fast
+
+conformance-run: pre-test-run
+	@kubectl run -n go-example-e2e --rm -i ginkgo --env="DB=mysql" \
+     	--image ginkgo:dev --overrides='{"spec":{"serviceAccount":"ginkgo" }}' --restart=Never \
+     	--command -- /bin/sh -c /usr/local/huayi/conformance.test --ginkgo.trace -test.v --ginkgo.v -test.failfast --ginkgo.fail-fast
 
 e2e: kind-up build-app-image build-ginkgo-image kind-load-images e2e-run
 
 e2e-ginkgo: build-ginkgo-image kind-load-images e2e-run
+
+docker-compose-up:
+	@docker compose -f test/framework/manifests/docker-compose.yaml up -d
+	@echo "Waiting for services to be healthy..."
+	@docker compose -f test/framework/manifests/docker-compose.yaml ps
+	@timeout 60 sh -c 'until docker compose -f test/framework/manifests/docker-compose.yaml ps | grep -q "healthy"; do sleep 2; done' || echo "Services may not be fully healthy yet"
+
+docker-compose-down:
+	@docker compose -f test/framework/manifests/docker-compose.yaml down -v
+
+run-e2e-for-docker-compose: docker-compose-up
+	@docker run --rm --network manifests_e2e-test-network \
+		-e DB=mysql \
+		-e APP_SERVER=http://app:8080 \
+		--entrypoint /usr/local/huayi/e2e.test \
+		ginkgo:dev
+	@$(MAKE) docker-compose-down
+
+run-conformance-for-docker-compose: docker-compose-up
+	@docker run --rm --network manifests_e2e-test-network \
+		-e DB=mysql \
+		-e APP_SERVER=http://app:8080 \
+		--entrypoint /usr/local/huayi/conformance.test \
+		ginkgo:dev
+	@$(MAKE) docker-compose-down
