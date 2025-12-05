@@ -3,17 +3,18 @@ package router
 import (
 	"net/http"
 
-	"github.com/dspo/go-homework/internal/common"
+	"github.com/dspo/go-homework/internal/application"
+	"github.com/dspo/go-homework/internal/handler"
 )
 
-func NewRouter(app ApplicationContext) http.Handler {
+func NewRouter(app application.Context) http.Handler {
 	mount(app)
 	return app.Engine
 }
 
-func mount(app ApplicationContext) {
+func mount(app application.Context) {
 
-	app.GET("/healthz", common.HealthzHandler())
+	app.GET("/healthz", handler.HealthzHandler())
 
 	app.GET("/api/audits")
 

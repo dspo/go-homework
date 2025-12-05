@@ -14,8 +14,10 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
 
+	"github.com/dspo/go-homework/internal/application"
 	"github.com/dspo/go-homework/internal/common"
 	"github.com/dspo/go-homework/internal/router"
+	"github.com/dspo/go-homework/internal/service"
 	"github.com/dspo/go-homework/pkg/engine"
 )
 
@@ -112,9 +114,10 @@ func run(cmd *cobra.Command, args []string) {
 	// We initialize the components here
 	app := fx.New(
 		fx.Invoke(func(server *http.Server) {}),
+		fx.Invoke(service.AutoMigrate),
 		fx.Provide(NewHTTPServer),
 		fx.Provide(router.NewRouter),
-		fx.Provide(router.NewApplicationContext),
+		fx.Provide(application.NewContext),
 		fx.Provide(engine.New),
 		// fx.Provide(database.NewGorm),
 		// fx.Provide(service.NewBook),

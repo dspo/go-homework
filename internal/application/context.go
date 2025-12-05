@@ -1,20 +1,20 @@
-package router
+package application
 
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/dspo/go-homework/internal/common"
+	"github.com/dspo/go-homework/internal/handler"
 	"github.com/dspo/go-homework/pkg/engine"
 )
 
-type ApplicationContext struct {
+type Context struct {
 	Engine *engine.Engine
 
 	GET, POST, PUT, PATCH, DELETE, Any func(string, ...gin.HandlerFunc) gin.IRoutes
 }
 
-func NewApplicationContext(gn *engine.Engine) ApplicationContext {
-	return ApplicationContext{
+func NewContext(gn *engine.Engine) Context {
+	return Context{
 		Engine: gn,
 		GET:    wrap(gn.GET),
 		POST:   wrap(gn.POST),
@@ -28,7 +28,7 @@ func NewApplicationContext(gn *engine.Engine) ApplicationContext {
 func wrap(f func(string, ...gin.HandlerFunc) gin.IRoutes) func(string, ...gin.HandlerFunc) gin.IRoutes {
 	return func(s string, handlerFunc ...gin.HandlerFunc) gin.IRoutes {
 		if len(handlerFunc) == 0 {
-			handlerFunc = append(handlerFunc, common.NotYetImplemented)
+			handlerFunc = append(handlerFunc, handler.NotYetImplemented)
 		}
 		return f(s, handlerFunc...)
 	}
