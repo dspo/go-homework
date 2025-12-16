@@ -11,12 +11,26 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // SDK is the client interface
 type SDK interface {
-	// Auth returns the authentication API
-	Auth() AuthAPI
+	// LoginWithUsername logs in with username and returns a user-scoped client
+	LoginWithUsername(username, password string) (UserClient, error)
+	// LoginWithEmail logs in with email and returns a user-scoped client
+	LoginWithEmail(email, password string) (UserClient, error)
+	Guest() UserClient
+	// Healthz performs health check
+	Healthz() error
+}
+
+// UserClient 表示携带指定用户登录态的客户端。
+// 使用该客户端发出的请求会携带对应用户的 Cookie，同时支持业务 API 调用。
+type UserClient interface {
+	SDK
+	// Logout logs out the current user
+	Logout() error
 	// Me returns the current user API
 	Me() MeAPI
 	// Users returns the users API
@@ -29,18 +43,6 @@ type SDK interface {
 	Roles() RolesAPI
 	// Audits returns the audits API
 	Audits() AuditsAPI
-}
-
-// AuthAPI provides authentication operations
-type AuthAPI interface {
-	// LoginWithUsername logs in with username
-	LoginWithUsername(username, password string) error
-	// LoginWithEmail logs in with email
-	LoginWithEmail(email, password string) error
-	// Logout logs out the current user
-	Logout() error
-	// Healthz performs health check
-	Healthz() error
 }
 
 // MeAPI provides current user operations
@@ -141,10 +143,19 @@ type AuditsAPI interface {
 	List(params *ListParams) (*AuditsListResponse, error)
 }
 
+var once sync.Once
 var globalSDK SDK
 
-// NewSDK creates a new SDK instance and sets it as global singleton
+// NewSDK creates a new SDK instance and sets it as global singleton.
+// It can be only init onece.
 func NewSDK(addr string) SDK {
+	once.Do(func() {
+		initSDK(addr)
+	})
+	return globalSDK
+}
+
+func initSDK(addr string) {
 	jar, _ := cookiejar.New(nil)
 	baseURL, _ := url.Parse(strings.TrimRight(addr, "/"))
 	globalSDK = &sdk{
@@ -153,7 +164,6 @@ func NewSDK(addr string) SDK {
 			Jar: jar,
 		},
 	}
-	return globalSDK
 }
 
 // GetSDK returns the global SDK singleton
@@ -167,10 +177,8 @@ func GetSDK() SDK {
 type sdk struct {
 	baseURL *url.URL
 	client  *http.Client
-}
-
-func (s *sdk) Auth() AuthAPI {
-	return &authAPI{sdk: s}
+	// cookieScope 记录最近一次更新 Cookie 时使用的 URL，用于复制登录态。
+	cookieScope *url.URL
 }
 
 func (s *sdk) Me() MeAPI {
@@ -199,12 +207,72 @@ func (s *sdk) Audits() AuditsAPI {
 
 // =============== Internal utility methods ===============
 
-func (s *sdk) doRequest(method, pathStr string, body any, result any) error {
+func (s *sdk) cookieURLForJar(base *url.URL) *url.URL {
+	if base == nil {
+		return nil
+	}
+	u := *base
+	if u.Path == "" {
+		u.Path = "/"
+	}
+	u.RawQuery = ""
+	u.Fragment = ""
+	return &u
+}
+
+func (s *sdk) cloneWithCookies() UserClient {
+	var baseCopy *url.URL
+	if s.baseURL != nil {
+		tmp := *s.baseURL
+		baseCopy = &tmp
+	}
+
+	newJar, _ := cookiejar.New(nil)
+	cookieURL := s.cookieScope
+	if cookieURL == nil {
+		cookieURL = s.cookieURLForJar(s.baseURL)
+	}
+	if s.client != nil && s.client.Jar != nil && cookieURL != nil {
+		newJar.SetCookies(cookieURL, s.client.Jar.Cookies(cookieURL))
+	}
+
+	newClient := http.Client{}
+	if s.client != nil {
+		newClient = *s.client
+	}
+	newClient.Jar = newJar
+
+	return &sdk{
+		baseURL: baseCopy,
+		client:  &newClient,
+	}
+}
+
+func (s *sdk) resetCookies(targetURL *url.URL, cookies []*http.Cookie) {
+	if len(cookies) == 0 {
+		return
+	}
+
+	newJar, _ := cookiejar.New(nil)
+	cookieURL := s.cookieURLForJar(targetURL)
+	if cookieURL == nil {
+		return
+	}
+
+	newJar.SetCookies(cookieURL, cookies)
+	s.cookieScope = cookieURL
+	if s.client == nil {
+		s.client = &http.Client{}
+	}
+	s.client.Jar = newJar
+}
+
+func doRequest[T any](s *sdk, method, pathStr string, body any) (*T, error) {
 	var bodyReader io.Reader
 	if body != nil {
 		data, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("marshal request body: %w", err)
+			return nil, fmt.Errorf("marshal request body: %w", err)
 		}
 		bodyReader = bytes.NewReader(data)
 	}
@@ -214,7 +282,7 @@ func (s *sdk) doRequest(method, pathStr string, body any, result any) error {
 
 	req, err := http.NewRequest(method, fullURL.String(), bodyReader)
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return nil, fmt.Errorf("create request: %w", err)
 	}
 
 	if body != nil {
@@ -223,30 +291,33 @@ func (s *sdk) doRequest(method, pathStr string, body any, result any) error {
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return fmt.Errorf("do request: %w", err)
+		return nil, fmt.Errorf("do request: %w", err)
 	}
 	defer resp.Body.Close()
 
+	s.resetCookies(fullURL, resp.Cookies())
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("read response: %w", err)
+		return nil, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode >= 400 {
 		var errResp Error
 		if err := json.Unmarshal(respBody, &errResp); err == nil {
-			return fmt.Errorf("API error (%d): %s", resp.StatusCode, errResp.Error)
+			return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, errResp.Error)
 		}
-		return fmt.Errorf("API error: status code %d, body: %s", resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("API error: status code %d, body: %s", resp.StatusCode, string(respBody))
 	}
 
-	if result != nil && len(respBody) > 0 {
-		if err := json.Unmarshal(respBody, result); err != nil {
-			return fmt.Errorf("unmarshal response: %w", err)
+	var out T
+	if len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, &out); err != nil {
+			return nil, fmt.Errorf("unmarshal response: %w", err)
 		}
 	}
 
-	return nil
+	return &out, nil
 }
 
 func buildQueryParams(params *ListParams) url.Values {
@@ -296,32 +367,44 @@ func buildQueryParams(params *ListParams) url.Values {
 
 // =============== Authentication implementations ===============
 
-type authAPI struct {
-	sdk *sdk
-}
-
-func (a *authAPI) LoginWithUsername(username, password string) error {
+func (s *sdk) LoginWithUsername(username, password string) (UserClient, error) {
 	req := LoginWithUsername{
 		Username: username,
 		Password: password,
 	}
-	return a.sdk.doRequest(http.MethodPost, "/api/login", req, nil)
+	if _, err := doRequest[struct{}](s, http.MethodPost, "/api/login", req); err != nil {
+		return nil, err
+	}
+	return s.cloneWithCookies(), nil
 }
 
-func (a *authAPI) LoginWithEmail(email, password string) error {
+func (s *sdk) LoginWithEmail(email, password string) (UserClient, error) {
 	req := LoginWithEmail{
 		Email:    email,
 		Password: password,
 	}
-	return a.sdk.doRequest(http.MethodPost, "/api/login", req, nil)
+	if _, err := doRequest[struct{}](s, http.MethodPost, "/api/login", req); err != nil {
+		return nil, err
+	}
+	return s.cloneWithCookies(), nil
 }
 
-func (a *authAPI) Logout() error {
-	return a.sdk.doRequest(http.MethodPost, "/api/logout", nil, nil)
+func (s *sdk) Guest() UserClient {
+	return &sdk{
+		baseURL:     s.baseURL,
+		client:      new(http.Client),
+		cookieScope: s.cookieScope,
+	}
 }
 
-func (a *authAPI) Healthz() error {
-	return a.sdk.doRequest(http.MethodGet, "/healthz", nil, nil)
+func (s *sdk) Logout() error {
+	_, err := doRequest[struct{}](s, http.MethodPost, "/api/logout", nil)
+	return err
+}
+
+func (s *sdk) Healthz() error {
+	_, err := doRequest[struct{}](s, http.MethodGet, "/healthz", nil)
+	return err
 }
 
 // =============== Me implementations ===============
@@ -331,15 +414,13 @@ type meAPI struct {
 }
 
 func (m *meAPI) Get() (*User, error) {
-	var user User
-	err := m.sdk.doRequest(http.MethodGet, "/api/me", nil, &user)
-	return &user, err
+	user, err := doRequest[User](m.sdk, http.MethodGet, "/api/me", nil)
+	return user, err
 }
 
 func (m *meAPI) Update(req *UpdateMeRequest) (*User, error) {
-	var user User
-	err := m.sdk.doRequest(http.MethodPut, "/api/me", req, &user)
-	return &user, err
+	user, err := doRequest[User](m.sdk, http.MethodPut, "/api/me", req)
+	return user, err
 }
 
 func (m *meAPI) UpdatePassword(oldPassword, newPassword string) error {
@@ -347,7 +428,8 @@ func (m *meAPI) UpdatePassword(oldPassword, newPassword string) error {
 		OldPassword: oldPassword,
 		NewPassword: newPassword,
 	}
-	return m.sdk.doRequest(http.MethodPut, "/api/me/password", req, nil)
+	_, err := doRequest[struct{}](m.sdk, http.MethodPut, "/api/me/password", req)
+	return err
 }
 
 func (m *meAPI) ListTeams(leading *bool) (*TeamsListResponse, error) {
@@ -357,14 +439,14 @@ func (m *meAPI) ListTeams(leading *bool) (*TeamsListResponse, error) {
 		Path:     "/api/me/teams",
 		RawQuery: query.Encode(),
 	}
-	var resp TeamsListResponse
-	err := m.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[TeamsListResponse](m.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (m *meAPI) ExitTeam(teamID int) error {
 	pathStr := path.Join("/api/me/teams", strconv.Itoa(teamID))
-	return m.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](m.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 func (m *meAPI) ListProjects(params *ListParams) (*ProjectsListResponse, error) {
@@ -373,14 +455,14 @@ func (m *meAPI) ListProjects(params *ListParams) (*ProjectsListResponse, error) 
 		Path:     "/api/me/projects",
 		RawQuery: query.Encode(),
 	}
-	var resp ProjectsListResponse
-	err := m.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[ProjectsListResponse](m.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (m *meAPI) ExitProject(projectID int) error {
 	pathStr := path.Join("/api/me/projects", strconv.Itoa(projectID))
-	return m.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](m.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 // =============== Users implementations ===============
@@ -394,9 +476,8 @@ func (u *usersAPI) Create(username, password string) (*User, error) {
 		Username: username,
 		Password: password,
 	}
-	var user User
-	err := u.sdk.doRequest(http.MethodPost, "/api/users", req, &user)
-	return &user, err
+	user, err := doRequest[User](u.sdk, http.MethodPost, "/api/users", req)
+	return user, err
 }
 
 func (u *usersAPI) List(params *ListParams) (*UsersListResponse, error) {
@@ -405,21 +486,20 @@ func (u *usersAPI) List(params *ListParams) (*UsersListResponse, error) {
 		Path:     "/api/users",
 		RawQuery: query.Encode(),
 	}
-	var resp UsersListResponse
-	err := u.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[UsersListResponse](u.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (u *usersAPI) Get(userID int) (*User, error) {
 	pathStr := path.Join("/api/users", strconv.Itoa(userID))
-	var user User
-	err := u.sdk.doRequest(http.MethodGet, pathStr, nil, &user)
-	return &user, err
+	user, err := doRequest[User](u.sdk, http.MethodGet, pathStr, nil)
+	return user, err
 }
 
 func (u *usersAPI) Delete(userID int) error {
 	pathStr := path.Join("/api/users", strconv.Itoa(userID))
-	return u.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](u.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 func (u *usersAPI) ListTeams(userID int, params *ListParams) (*TeamsListResponse, error) {
@@ -428,27 +508,27 @@ func (u *usersAPI) ListTeams(userID int, params *ListParams) (*TeamsListResponse
 		Path:     path.Join("/api/users", strconv.Itoa(userID), "teams"),
 		RawQuery: query.Encode(),
 	}
-	var resp TeamsListResponse
-	err := u.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[TeamsListResponse](u.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (u *usersAPI) ListProjects(userID int) (*ProjectsListResponse, error) {
 	pathStr := path.Join("/api/users", strconv.Itoa(userID), "projects")
-	var resp ProjectsListResponse
-	err := u.sdk.doRequest(http.MethodGet, pathStr, nil, &resp)
-	return &resp, err
+	resp, err := doRequest[ProjectsListResponse](u.sdk, http.MethodGet, pathStr, nil)
+	return resp, err
 }
 
 func (u *usersAPI) AddRole(userID, roleID int) error {
 	pathStr := path.Join("/api/users", strconv.Itoa(userID), "roles")
 	req := AddRoleToUserRequest{RoleID: roleID}
-	return u.sdk.doRequest(http.MethodPost, pathStr, req, nil)
+	_, err := doRequest[struct{}](u.sdk, http.MethodPost, pathStr, req)
+	return err
 }
 
 func (u *usersAPI) RemoveRole(userID, roleID int) error {
 	pathStr := path.Join("/api/users", strconv.Itoa(userID), "roles", strconv.Itoa(roleID))
-	return u.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](u.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 // =============== Teams implementations ===============
@@ -463,29 +543,25 @@ func (t *teamsAPI) List(params *ListParams) (*TeamsListResponse, error) {
 		Path:     "/api/teams",
 		RawQuery: query.Encode(),
 	}
-	var resp TeamsListResponse
-	err := t.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[TeamsListResponse](t.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (t *teamsAPI) Create(req *CreateTeamRequest) (*Team, error) {
-	var team Team
-	err := t.sdk.doRequest(http.MethodPost, "/api/teams", req, &team)
-	return &team, err
+	team, err := doRequest[Team](t.sdk, http.MethodPost, "/api/teams", req)
+	return team, err
 }
 
 func (t *teamsAPI) Get(teamID int) (*Team, error) {
 	pathStr := path.Join("/api/teams", strconv.Itoa(teamID))
-	var team Team
-	err := t.sdk.doRequest(http.MethodGet, pathStr, nil, &team)
-	return &team, err
+	team, err := doRequest[Team](t.sdk, http.MethodGet, pathStr, nil)
+	return team, err
 }
 
 func (t *teamsAPI) Update(teamID int, req *UpdateTeamRequest) (*Team, error) {
 	pathStr := path.Join("/api/teams", strconv.Itoa(teamID))
-	var team Team
-	err := t.sdk.doRequest(http.MethodPut, pathStr, req, &team)
-	return &team, err
+	team, err := doRequest[Team](t.sdk, http.MethodPut, pathStr, req)
+	return team, err
 }
 
 func (t *teamsAPI) UpdateLeader(teamID int, leaderID *int) (*Team, error) {
@@ -504,14 +580,14 @@ func (t *teamsAPI) UpdateLeader(teamID int, leaderID *int) (*Team, error) {
 		},
 	}
 
-	var team Team
-	err := t.sdk.doRequest(http.MethodPatch, pathStr, req, &team)
-	return &team, err
+	team, err := doRequest[Team](t.sdk, http.MethodPatch, pathStr, req)
+	return team, err
 }
 
 func (t *teamsAPI) Delete(teamID int) error {
 	pathStr := path.Join("/api/teams", strconv.Itoa(teamID))
-	return t.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](t.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 func (t *teamsAPI) ListUsers(teamID int, params *ListParams) (*UsersListResponse, error) {
@@ -520,20 +596,21 @@ func (t *teamsAPI) ListUsers(teamID int, params *ListParams) (*UsersListResponse
 		Path:     path.Join("/api/teams", strconv.Itoa(teamID), "users"),
 		RawQuery: query.Encode(),
 	}
-	var resp UsersListResponse
-	err := t.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[UsersListResponse](t.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (t *teamsAPI) AddUser(teamID, userID int) error {
 	pathStr := path.Join("/api/teams", strconv.Itoa(teamID), "users")
 	req := AddUserToTeamRequest{UserID: userID}
-	return t.sdk.doRequest(http.MethodPost, pathStr, req, nil)
+	_, err := doRequest[struct{}](t.sdk, http.MethodPost, pathStr, req)
+	return err
 }
 
 func (t *teamsAPI) RemoveUser(teamID, userID int) error {
 	pathStr := path.Join("/api/teams", strconv.Itoa(teamID), "users", strconv.Itoa(userID))
-	return t.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](t.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 func (t *teamsAPI) ListProjects(teamID int, params *ListParams) (*ProjectsListResponse, error) {
@@ -542,16 +619,14 @@ func (t *teamsAPI) ListProjects(teamID int, params *ListParams) (*ProjectsListRe
 		Path:     path.Join("/api/teams", strconv.Itoa(teamID), "projects"),
 		RawQuery: query.Encode(),
 	}
-	var resp ProjectsListResponse
-	err := t.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[ProjectsListResponse](t.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (t *teamsAPI) CreateProject(teamID int, req *CreateProjectRequest) (*Project, error) {
 	pathStr := path.Join("/api/teams", strconv.Itoa(teamID), "projects")
-	var project Project
-	err := t.sdk.doRequest(http.MethodPost, pathStr, req, &project)
-	return &project, err
+	project, err := doRequest[Project](t.sdk, http.MethodPost, pathStr, req)
+	return project, err
 }
 
 // =============== Projects implementations ===============
@@ -562,28 +637,26 @@ type projectsAPI struct {
 
 func (p *projectsAPI) Get(projectID int) (*Project, error) {
 	pathStr := path.Join("/api/projects", strconv.Itoa(projectID))
-	var project Project
-	err := p.sdk.doRequest(http.MethodGet, pathStr, nil, &project)
-	return &project, err
+	project, err := doRequest[Project](p.sdk, http.MethodGet, pathStr, nil)
+	return project, err
 }
 
 func (p *projectsAPI) Update(projectID int, req *UpdateProjectRequest) (*Project, error) {
 	pathStr := path.Join("/api/projects", strconv.Itoa(projectID))
-	var project Project
-	err := p.sdk.doRequest(http.MethodPut, pathStr, req, &project)
-	return &project, err
+	project, err := doRequest[Project](p.sdk, http.MethodPut, pathStr, req)
+	return project, err
 }
 
 func (p *projectsAPI) Patch(projectID int, patches []PatchProjectRequest) (*Project, error) {
 	pathStr := path.Join("/api/projects", strconv.Itoa(projectID))
-	var project Project
-	err := p.sdk.doRequest(http.MethodPatch, pathStr, patches, &project)
-	return &project, err
+	project, err := doRequest[Project](p.sdk, http.MethodPatch, pathStr, patches)
+	return project, err
 }
 
 func (p *projectsAPI) Delete(projectID int) error {
 	pathStr := path.Join("/api/projects", strconv.Itoa(projectID))
-	return p.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](p.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 func (p *projectsAPI) ListUsers(projectID int, params *ListParams) (*UsersListResponse, error) {
@@ -592,20 +665,21 @@ func (p *projectsAPI) ListUsers(projectID int, params *ListParams) (*UsersListRe
 		Path:     path.Join("/api/projects", strconv.Itoa(projectID), "users"),
 		RawQuery: query.Encode(),
 	}
-	var resp UsersListResponse
-	err := p.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[UsersListResponse](p.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }
 
 func (p *projectsAPI) AddUser(projectID, userID int) error {
 	pathStr := path.Join("/api/projects", strconv.Itoa(projectID), "users")
 	req := AddUserToProjectRequest{UserID: userID}
-	return p.sdk.doRequest(http.MethodPost, pathStr, req, nil)
+	_, err := doRequest[struct{}](p.sdk, http.MethodPost, pathStr, req)
+	return err
 }
 
 func (p *projectsAPI) RemoveUser(projectID, userID int) error {
 	pathStr := path.Join("/api/projects", strconv.Itoa(projectID), "users", strconv.Itoa(userID))
-	return p.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](p.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 // =============== Roles implementations ===============
@@ -615,20 +689,19 @@ type rolesAPI struct {
 }
 
 func (r *rolesAPI) List() (*RolesListResponse, error) {
-	var resp RolesListResponse
-	err := r.sdk.doRequest(http.MethodGet, "/api/roles", nil, &resp)
-	return &resp, err
+	resp, err := doRequest[RolesListResponse](r.sdk, http.MethodGet, "/api/roles", nil)
+	return resp, err
 }
 
 func (r *rolesAPI) Create(req *CreateRoleRequest) (*Role, error) {
-	var role Role
-	err := r.sdk.doRequest(http.MethodPost, "/api/roles", req, &role)
-	return &role, err
+	role, err := doRequest[Role](r.sdk, http.MethodPost, "/api/roles", req)
+	return role, err
 }
 
 func (r *rolesAPI) Delete(roleID int) error {
 	pathStr := path.Join("/api/roles", strconv.Itoa(roleID))
-	return r.sdk.doRequest(http.MethodDelete, pathStr, nil, nil)
+	_, err := doRequest[struct{}](r.sdk, http.MethodDelete, pathStr, nil)
+	return err
 }
 
 // =============== Audits implementations ===============
@@ -643,7 +716,6 @@ func (a *auditsAPI) List(params *ListParams) (*AuditsListResponse, error) {
 		Path:     "/api/audits",
 		RawQuery: query.Encode(),
 	}
-	var resp AuditsListResponse
-	err := a.sdk.doRequest(http.MethodGet, pathURL.String(), nil, &resp)
-	return &resp, err
+	resp, err := doRequest[AuditsListResponse](a.sdk, http.MethodGet, pathURL.String(), nil)
+	return resp, err
 }

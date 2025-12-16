@@ -63,7 +63,7 @@ kind-load-images:
 	@kind load docker-image go-example-app:dev --name $(KIND_NAME)
 	@kind load docker-image ginkgo:dev --name $(KIND_NAME)
 
-pre-test-run:
+pre-test-run: kind-clean-ns
 	@kubectl delete deployment -l testGroup=application --all-namespaces
 	@kubectl apply -f test/framework/manifests/namespace.yaml
 	@kubectl apply -f test/framework/manifests/configmap.yaml
@@ -81,7 +81,14 @@ conformance-run: pre-test-run
 
 e2e: kind-up build-app-image build-ginkgo-image kind-load-images e2e-run
 
+conformance: kind-up build-app-image build-ginkgo-image kind-load-images conformance-run
+
 e2e-ginkgo: build-ginkgo-image kind-load-images e2e-run
+
+conformance-ginkgo: build-ginkgo-image kind-load-images conformance-run
+
+kind-clean-ns:
+	@kubectl delete ns go-example-e2e
 
 docker-compose-up:
 	@docker compose -f test/framework/manifests/docker-compose.yaml up -d

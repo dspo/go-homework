@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	sdk "github.com/dspo/go-homework/sdk"
+	. "github.com/onsi/gomega"
+
+	"github.com/dspo/go-homework/sdk"
 )
 
 // helperUniqueName returns a unique name with the given prefix.
@@ -12,15 +14,7 @@ func helperUniqueName(prefix string) string {
 	return fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
 }
 
-func helperStringPtr(v string) *string {
-	return &v
-}
-
-func helperBoolPtr(v bool) *bool {
-	return &v
-}
-
-func helperIntPtr(v int) *int {
+func Ptr[T any](v T) *T {
 	return &v
 }
 
@@ -35,4 +29,18 @@ func helperRolesContain(roles []sdk.Role, roleName string) bool {
 		}
 	}
 	return false
+}
+
+// loginWithUsername 返回带登录态的客户端，便于链式访问。
+func loginWithUsername(sdk sdk.SDK, username, password string) sdk.UserClient {
+	client, err := sdk.LoginWithUsername(username, password)
+	Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
+	return client
+}
+
+// loginWithEmail 返回带登录态的客户端。
+func loginWithEmail(email, password string) sdk.UserClient {
+	client, err := sdk.GetSDK().LoginWithEmail(email, password)
+	Expect(err).NotTo(HaveOccurred(), "failed to LoginWithEmail: %v", err)
+	return client
 }

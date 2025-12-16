@@ -34,7 +34,7 @@ spec:
         volumeMounts:
         - name: config-volume
           mountPath: /config/app/config.yaml
-          subPath: app0_config.yaml
+          subPath: app_config.yaml
       volumes:
       - name: config-volume
         configMap:

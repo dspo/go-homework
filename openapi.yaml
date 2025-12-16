@@ -32,9 +32,12 @@ info:
     那么 user::A 与 user::B 同处于 team::b, 则 user::A 与 user::B 互相可见。
     user::A 与 user::C 不同处于任何 Team,则 user::A 与 user::C 互相不可见。
     那么 user::A 访问 `/api/users` 这样的接口时,接口返回的 users 列表只能包含 {user::B}, 而不能包含 {user::C}.
+    
+    **用户对自己总是可见的。**
+    用户能查询到自己。
 
     用户可见性会影响一些接口逻辑: 
-    - 如果接口返回 users 列表,那么列表中不应当包含 Me 不可见的那部分 users。
+    - 如果接口返回 users 列表,那么列表中不应当包含 Me 不可见的那部分 users（但应当包含自身，因为用户可见自己）。
     - Me 没有权限查询不可见的 User 的详情。
 
     ## Team Leader
@@ -1338,7 +1341,7 @@ paths:
                 - user_id
               properties:
                 user_id:
-                  $ref: "#/components/schemas/User/properties/id"
+                  $ref: "#/components/schemas/id"
               additionalProperties: false
       responses:
         200:
@@ -1517,7 +1520,6 @@ components:
             - $ref: "#/components/schemas/username"
             - readOnly: true
         email:
-          description: 用户邮箱（可选），在系统内唯一。
           $ref: "#/components/schemas/email"
         nickname:
           description: |-
