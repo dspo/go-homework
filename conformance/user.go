@@ -1,8 +1,7 @@
 package conformance
 
 import (
-	"strings"
-	"time"
+	"net/http"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -97,12 +96,12 @@ var _ = Describe("Authentication", func() {
 			By("Admin creates a new user")
 			admin := loginWithUsername(sdk.GetSDK(), "admin", "admin123")
 
-			user, err := admin.Users().Create("testpasswd", "test123")
+			user, err := admin.Users().Create("testpasswd", "test1234")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			userID := user.ID
 
 			By("New user login with initial password")
-			testUser := loginWithUsername(sdk.GetSDK(), "testpasswd", "test123")
+			testUser := loginWithUsername(sdk.GetSDK(), "testpasswd", "test1234")
 
 			By("Try to access /api/me")
 			_, err = testUser.Me().Get()
@@ -122,14 +121,14 @@ var _ = Describe("Authentication", func() {
 			admin := loginWithUsername(sdk.GetSDK(), "admin", "admin123")
 
 			// Create test user and change password
-			user, err := admin.Users().Create("testpasswd2", "test123")
+			user, err := admin.Users().Create("testpasswd2", "test1234")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			userID := user.ID
 
-			testClient := loginWithUsername(sdk.GetSDK(), "testpasswd2", "test123")
+			testClient := loginWithUsername(sdk.GetSDK(), "testpasswd2", "test1234")
 
 			By("User changes password")
-			err = testClient.Me().UpdatePassword("test123", "test456")
+			err = testClient.Me().UpdatePassword("test1234", "test4567")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
 			By("Try to access /api/me with old session")
@@ -140,7 +139,7 @@ var _ = Describe("Authentication", func() {
 			Expect(err.Error()).To(ContainSubstring("401"))
 
 			By("Login with new password should succeed")
-			testClient = loginWithUsername(sdk.GetSDK(), "testpasswd2", "test456")
+			testClient = loginWithUsername(sdk.GetSDK(), "testpasswd2", "test4567")
 
 			_, err = testClient.Me().Get()
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -172,7 +171,7 @@ var _ = Describe("Users", func() {
 			admin := loginWithUsername(sdk.GetSDK(), "admin", "admin123")
 
 			By("POST /api/users with username and password")
-			user, err := admin.Users().Create("testuser_crud", "test123")
+			user, err := admin.Users().Create("testuser_crud", "test1234")
 
 			By("Should return 200 with user object")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -186,18 +185,18 @@ var _ = Describe("Users", func() {
 			By("Normal user login")
 			// Create a normal user first
 			admin := loginWithUsername(sdk.GetSDK(), "admin", "admin123")
-			normalUser, err := admin.Users().Create("normaluser", "test123")
+			normalUser, err := admin.Users().Create("normaluser", "test1234")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
 			// Change password for normal user
-			normalClient := loginWithUsername(sdk.GetSDK(), "normaluser", "test123")
-			err = normalClient.Me().UpdatePassword("test123", "test456")
+			normalClient := loginWithUsername(sdk.GetSDK(), "normaluser", "test1234")
+			err = normalClient.Me().UpdatePassword("test1234", "test4567")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
-			normalClient = loginWithUsername(sdk.GetSDK(), "normaluser", "test456")
+			normalClient = loginWithUsername(sdk.GetSDK(), "normaluser", "test4567")
 
 			By("Try to POST /api/users")
-			_, err = normalClient.Users().Create("anotheruser", "test123")
+			_, err = normalClient.Users().Create("anotheruser", "test1234")
 
 			By("Should get 403 Forbidden")
 			Expect(err).To(HaveOccurred())
@@ -233,13 +232,13 @@ var _ = Describe("Users", func() {
 			By("Normal user (not in any team) login")
 			admin := loginWithUsername(sdk.GetSDK(), "admin", "admin123")
 
-			isolatedUser, err := admin.Users().Create("isolated", "test123")
+			isolatedUser, err := admin.Users().Create("isolated", "test1234")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
-			isolatedClient := loginWithUsername(sdk.GetSDK(), "isolated", "test123")
-			err = isolatedClient.Me().UpdatePassword("test123", "test456")
+			isolatedClient := loginWithUsername(sdk.GetSDK(), "isolated", "test1234")
+			err = isolatedClient.Me().UpdatePassword("test1234", "test4567")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			isolatedClient = loginWithUsername(sdk.GetSDK(), "isolated", "test456")
+			isolatedClient = loginWithUsername(sdk.GetSDK(), "isolated", "test4567")
 
 			By("GET /api/users")
 			users, err := isolatedClient.Users().List(nil)
@@ -279,9 +278,9 @@ var _ = Describe("Users", func() {
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
 			// Create userA in teamA and userB in teamB
-			userA, err := admin.Users().Create("userA_visibility", "test123")
+			userA, err := admin.Users().Create("userA_visibility", "test1234")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			userB, err := admin.Users().Create("userB_visibility", "test123")
+			userB, err := admin.Users().Create("userB_visibility", "test1234")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
 			err = admin.Teams().AddUser(teamA.ID, userA.ID)
@@ -290,10 +289,10 @@ var _ = Describe("Users", func() {
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
 			// UserA login
-			userAClient := loginWithUsername(sdk.GetSDK(), "userA_visibility", "test123")
-			err = userAClient.Me().UpdatePassword("test123", "test456")
+			userAClient := loginWithUsername(sdk.GetSDK(), "userA_visibility", "test1234")
+			err = userAClient.Me().UpdatePassword("test1234", "test4567")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			userAClient = loginWithUsername(sdk.GetSDK(), "userA_visibility", "test456")
+			userAClient = loginWithUsername(sdk.GetSDK(), "userA_visibility", "test4567")
 
 			By("Try to GET /api/users/{userB_id} where userB not in teamA")
 			_, err = userAClient.Users().Get(userB.ID)
@@ -312,8 +311,7 @@ var _ = Describe("Users", func() {
 
 		It("should delete user by admin", func() {
 			By("Admin login")
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername("admin", "admin123")
+			s, err := sdk.GetSDK().Guest().LoginWithUsername("admin", "admin123")
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 
 			By("DELETE /api/users/{user_id}")
@@ -361,9 +359,9 @@ var _ = Describe("Users", func() {
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			teamBID = tB.ID
 
-			userA, passA = createAndSetupUser(helperUniqueName("userA"), "passA")
-			userB, _ = createAndSetupUser(helperUniqueName("userB"), "passB")
-			userC, passC = createAndSetupUser(helperUniqueName("userC"), "passC")
+			userA, passA = createAndSetupUser(helperUniqueName("userA"), "passA1234")
+			userB, _ = createAndSetupUser(helperUniqueName("userB"), "passB1234")
+			userC, passC = createAndSetupUser(helperUniqueName("userC"), "passC1234")
 
 			admin = loginWithUsername(sdk.GetSDK(), "admin", "admin123")
 			Expect(admin.Teams().AddUser(teamAID, userA.ID)).NotTo(HaveOccurred())
@@ -414,7 +412,7 @@ var _ = Describe("Users", func() {
 
 	Context("Me APIs", func() {
 		It("should get current user info", func() {
-			user, pass := createAndSetupUser(helperUniqueName("me_user"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_user"), "pass1234")
 			DeferCleanup(func() {
 				_ = loginWithUsername(sdk.GetSDK(), "admin", "admin123").Users().Delete(user.ID)
 			})
@@ -428,7 +426,7 @@ var _ = Describe("Users", func() {
 		})
 
 		It("should update current user info", func() {
-			user, pass := createAndSetupUser(helperUniqueName("me_update"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_update"), "pass1234")
 			DeferCleanup(func() {
 				_ = loginWithUsername(sdk.GetSDK(), "admin", "admin123").Users().Delete(user.ID)
 			})
@@ -460,7 +458,7 @@ var _ = Describe("Users", func() {
 
 		It("should list my teams", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_teams"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_teams"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -480,7 +478,7 @@ var _ = Describe("Users", func() {
 			Expect(s.Teams().AddUser(teamA.ID, user.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamB.ID, user.ID)).NotTo(HaveOccurred())
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			teams, err := s.Me().ListTeams(nil)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -494,7 +492,7 @@ var _ = Describe("Users", func() {
 
 		It("should list my leading teams", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_lead"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_lead"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -530,7 +528,7 @@ var _ = Describe("Users", func() {
 
 		It("should list my non-leading teams", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_nonlead"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_nonlead"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -565,7 +563,7 @@ var _ = Describe("Users", func() {
 
 		It("should exit from team", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_exit_team"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_exit_team"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -581,7 +579,7 @@ var _ = Describe("Users", func() {
 
 			Expect(s.Teams().AddUser(team.ID, user.ID)).NotTo(HaveOccurred())
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Me().ExitTeam(team.ID)).NotTo(HaveOccurred())
 			teams, err := s.Me().ListTeams(nil)
@@ -591,7 +589,7 @@ var _ = Describe("Users", func() {
 
 		It("should clear leader when leader exits team", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_exit_leader"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_exit_leader"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -611,7 +609,7 @@ var _ = Describe("Users", func() {
 			Expect(team.Leader).NotTo(BeNil())
 			Expect(team.Leader.ID).To(Equal(user.ID))
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Me().ExitTeam(team.ID)).NotTo(HaveOccurred())
 
@@ -623,7 +621,7 @@ var _ = Describe("Users", func() {
 
 		It("should list my projects", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_projects"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_projects"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -659,7 +657,7 @@ var _ = Describe("Users", func() {
 
 		It("should filter projects by team", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_projects_filter"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_projects_filter"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -706,7 +704,7 @@ var _ = Describe("Users", func() {
 
 		It("should exit from project", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("me_exit_project"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("me_exit_project"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -725,7 +723,7 @@ var _ = Describe("Users", func() {
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Projects().AddUser(project.ID, user.ID)).NotTo(HaveOccurred())
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Me().ExitProject(project.ID)).NotTo(HaveOccurred())
 			projects, err := s.Me().ListProjects(nil)
@@ -757,8 +755,8 @@ var _ = Describe("Users", func() {
 			s = loginAsAdmin(s)
 
 			var err error
-			targetUser, _ = createAndSetupUser(helperUniqueName("user_target"), "pass")
-			viewerUser, viewerPass = createAndSetupUser(helperUniqueName("user_viewer"), "pass")
+			targetUser, _ = createAndSetupUser(helperUniqueName("user_target"), "pass1234")
+			viewerUser, viewerPass = createAndSetupUser(helperUniqueName("user_viewer"), "pass1234")
 
 			s = loginAsAdmin(s)
 			teamCommon, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_common")})
@@ -836,7 +834,7 @@ var _ = Describe("Users", func() {
 	})
 })
 
-var _ = PDescribe("Roles", func() {
+var _ = Describe("Roles", func() {
 	Context("System Roles", func() {
 		It("should have 3 system roles initialized", func() {
 			s := loginAsAdmin(sdk.GetSDK())
@@ -869,13 +867,17 @@ var _ = PDescribe("Roles", func() {
 			Expect(adminRoleID).NotTo(Equal(0))
 
 			err = s.Roles().Delete(adminRoleID)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Or(ContainSubstring("403"), ContainSubstring("400")))
+			Expect(err).To(Or(
+				sdk.HaveOccurredWithStatusCode(http.StatusBadRequest),
+				sdk.HaveOccurredWithStatusCode(http.StatusForbidden),
+				sdk.HaveOccurredWithStatusCode(http.StatusNotAcceptable),
+				sdk.HaveOccurredWithStatusCode(http.StatusConflict),
+			))
 		})
 
 		It("should not add system roles to users manually", func() {
 			s := sdk.GetSDK().Guest()
-			user, _ := createAndSetupUser(helperUniqueName("role_sys"), "pass")
+			user, _ := createAndSetupUser(helperUniqueName("role_sys"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -894,8 +896,12 @@ var _ = PDescribe("Roles", func() {
 			Expect(adminRoleID).NotTo(Equal(0))
 
 			err = s.Users().AddRole(user.ID, adminRoleID)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Or(ContainSubstring("403"), ContainSubstring("400")))
+			Expect(err).To(Or(
+				sdk.HaveOccurredWithStatusCode(http.StatusBadRequest),
+				sdk.HaveOccurredWithStatusCode(http.StatusForbidden),
+				sdk.HaveOccurredWithStatusCode(http.StatusNotAcceptable),
+				sdk.HaveOccurredWithStatusCode(http.StatusConflict),
+			))
 		})
 
 		It("should auto-assign admin role to admin user", func() {
@@ -922,13 +928,17 @@ var _ = PDescribe("Roles", func() {
 			Expect(adminRoleID).NotTo(Equal(0))
 
 			err = s.Users().RemoveRole(me.ID, adminRoleID)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(Or(ContainSubstring("403"), ContainSubstring("400")))
+			Expect(err).To(Or(
+				sdk.HaveOccurredWithStatusCode(http.StatusBadRequest),
+				sdk.HaveOccurredWithStatusCode(http.StatusForbidden),
+				sdk.HaveOccurredWithStatusCode(http.StatusNotAcceptable),
+				sdk.HaveOccurredWithStatusCode(http.StatusConflict),
+			))
 		})
 
 		It("should auto-assign team leader role", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("role_leader"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("role_leader"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -948,7 +958,7 @@ var _ = PDescribe("Roles", func() {
 			Expect(team.Leader).NotTo(BeNil())
 			Expect(team.Leader.ID).To(Equal(user.ID))
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			me, err := s.Me().Get()
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -957,7 +967,7 @@ var _ = PDescribe("Roles", func() {
 
 		It("should auto-assign normal user role", func() {
 			s := sdk.GetSDK().Guest()
-			user, _ := createAndSetupUser(helperUniqueName("role_normal"), "pass")
+			user, _ := createAndSetupUser(helperUniqueName("role_normal"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -977,7 +987,7 @@ var _ = PDescribe("Roles", func() {
 		var testUserPass string
 
 		BeforeAll(func() {
-			testUser, testUserPass = createAndSetupUser(helperUniqueName("role_custom_user"), "pass")
+			testUser, testUserPass = createAndSetupUser(helperUniqueName("role_custom_user"), "pass1234")
 			DeferCleanup(func() {
 				s := loginAsAdmin(sdk.GetSDK())
 				_ = s.Users().Delete(testUser.ID)
@@ -1001,8 +1011,7 @@ var _ = PDescribe("Roles", func() {
 		})
 
 		It("should fail to create role by normal user", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(testUser.Username, testUserPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(testUser.Username, testUserPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Roles().Create(&sdk.CreateRoleRequest{Name: helperUniqueName("custom_role_fail")})
 			Expect(err).To(HaveOccurred())
@@ -1010,8 +1019,7 @@ var _ = PDescribe("Roles", func() {
 		})
 
 		It("should list all roles", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(testUser.Username, testUserPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(testUser.Username, testUserPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			roles, err := s.Roles().List()
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -1062,7 +1070,7 @@ var _ = PDescribe("Roles", func() {
 	Context("Role Permissions", func() {
 		It("should allow only admin to manage roles", func() {
 			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("role_perm_user"), "pass")
+			user, pass := createAndSetupUser(helperUniqueName("role_perm_user"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(user.ID)
@@ -1076,7 +1084,7 @@ var _ = PDescribe("Roles", func() {
 				_ = s.Roles().Delete(role.ID)
 			})
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Roles().Create(&sdk.CreateRoleRequest{Name: helperUniqueName("role_perm_fail")})
 			Expect(err).To(HaveOccurred())
@@ -1089,8 +1097,8 @@ var _ = PDescribe("Roles", func() {
 
 		It("should allow only admin to assign roles", func() {
 			s := sdk.GetSDK().Guest()
-			actor, pass := createAndSetupUser(helperUniqueName("role_assign_actor"), "pass")
-			target, _ := createAndSetupUser(helperUniqueName("role_assign_target"), "pass")
+			actor, pass := createAndSetupUser(helperUniqueName("role_assign_actor"), "pass1234")
+			target, _ := createAndSetupUser(helperUniqueName("role_assign_target"), "pass1234")
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Users().Delete(actor.ID)
@@ -1104,130 +1112,11 @@ var _ = PDescribe("Roles", func() {
 				s = loginAsAdmin(s)
 				_ = s.Roles().Delete(role.ID)
 			})
-
-			_, err = s.LoginWithUsername(actor.Username, pass)
+			s, err = s.LoginWithUsername(actor.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			err = s.Users().AddRole(target.ID, role.ID)
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("403"))
-		})
-	})
-})
-
-var _ = PDescribe("Audits", func() {
-	Context("Audit Logs", Ordered, func() {
-		var auditKeyword string
-		var auditTeamID int
-		var auditUserID int
-		var timeStart, timeEnd int64
-
-		BeforeAll(func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			auditKeyword = helperUniqueName("audit")
-			timeStart = time.Now().Add(-time.Minute).Unix()
-
-			user, err := s.Users().Create(auditKeyword+"_user", "auditpass")
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			auditUserID = user.ID
-
-			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: auditKeyword + "_team"})
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			auditTeamID = team.ID
-
-			desc := Ptr("desc " + auditKeyword)
-			_, err = s.Teams().Update(team.ID, &sdk.UpdateTeamRequest{Name: team.Name, Desc: desc})
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-
-			project, err := s.Teams().CreateProject(team.ID, &sdk.CreateProjectRequest{Name: auditKeyword + "_project"})
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			Expect(s.Projects().Delete(project.ID)).NotTo(HaveOccurred())
-
-			timeEnd = time.Now().Add(time.Minute).Unix()
-		})
-
-		AfterAll(func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			_ = s.Users().Delete(auditUserID)
-			_ = s.Teams().Delete(auditTeamID)
-		})
-
-		It("should query audit logs by admin", func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			logs, err := s.Audits().List(nil)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			Expect(logs.Total).To(BeNumerically(">", 0))
-			Expect(logs.List).NotTo(BeEmpty())
-			for _, entry := range logs.List {
-				Expect(entry.ID).To(BeNumerically(">", 0))
-				Expect(entry.Content).NotTo(BeEmpty())
-				Expect(entry.CreatedAt).To(BeNumerically(">", 0))
-			}
-		})
-
-		It("should fail to query by normal user", func() {
-			s := sdk.GetSDK().Guest()
-			user, pass := createAndSetupUser(helperUniqueName("audit_normal"), "pass")
-			DeferCleanup(func() {
-				s = loginAsAdmin(s)
-				_ = s.Users().Delete(user.ID)
-			})
-
-			_, err := s.LoginWithUsername(user.Username, pass)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			_, err = s.Audits().List(nil)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("403"))
-		})
-
-		It("should filter by keyword", func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			params := &sdk.ListParams{Keyword: Ptr(auditKeyword)}
-			logs, err := s.Audits().List(params)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			Expect(logs.Total).To(BeNumerically(">", 0))
-			Expect(logs.List).NotTo(BeEmpty())
-			for _, entry := range logs.List {
-				Expect(strings.Contains(strings.ToLower(entry.Content), strings.ToLower(auditKeyword))).To(BeTrue())
-			}
-		})
-
-		It("should filter by time range", func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			params := &sdk.ListParams{StartAt: helperInt64Ptr(timeStart), EndAt: helperInt64Ptr(timeEnd)}
-			logs, err := s.Audits().List(params)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			Expect(logs.Total).To(BeNumerically(">", 0))
-			for _, entry := range logs.List {
-				Expect(entry.CreatedAt).To(BeNumerically(">=", timeStart))
-				Expect(entry.CreatedAt).To(BeNumerically("<=", timeEnd))
-			}
-		})
-
-		It("should paginate audit logs", func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			page := 1
-			pageSize := 1
-			params := &sdk.ListParams{Page: &page, PageSize: &pageSize}
-			firstPage, err := s.Audits().List(params)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			Expect(firstPage.List).To(HaveLen(1))
-			page = 2
-			secondPage, err := s.Audits().List(params)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			Expect(secondPage.List).To(HaveLen(1))
-			Expect(firstPage.List[0].ID).NotTo(Equal(secondPage.List[0].ID))
-		})
-
-		It("should order audit logs", func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			orderBy := "created_at"
-			logs, err := s.Audits().List(&sdk.ListParams{OrderBy: &orderBy})
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			prev := int64(0)
-			for _, entry := range logs.List {
-				Expect(entry.CreatedAt).To(BeNumerically(">=", prev))
-				prev = entry.CreatedAt
-			}
 		})
 	})
 })

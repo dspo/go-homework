@@ -7,7 +7,7 @@ info:
 
     ## admin
 
-    在系统初始化时,应当创建出 admin 用户: 
+    在系统初始化时,应当创建出 admin 用户:
 
     - 用户名: admin
     - 初始密码: adminadmin
@@ -15,7 +15,7 @@ info:
     admin 用户拥有超然的权限,能查询和操作所有资源。
     例外:
     - admin User 不能删除自身。
-    - admin User 不能解绑自身的 admin Role。 
+    - admin User 不能解绑自身的 admin Role。
 
     ## Role
 
@@ -32,11 +32,11 @@ info:
     那么 user::A 与 user::B 同处于 team::b, 则 user::A 与 user::B 互相可见。
     user::A 与 user::C 不同处于任何 Team,则 user::A 与 user::C 互相不可见。
     那么 user::A 访问 `/api/users` 这样的接口时,接口返回的 users 列表只能包含 {user::B}, 而不能包含 {user::C}.
-    
+
     **用户对自己总是可见的。**
     用户能查询到自己。
 
-    用户可见性会影响一些接口逻辑: 
+    用户可见性会影响一些接口逻辑:
     - 如果接口返回 users 列表,那么列表中不应当包含 Me 不可见的那部分 users（但应当包含自身，因为用户可见自己）。
     - Me 没有权限查询不可见的 User 的详情。
 
@@ -88,7 +88,7 @@ paths:
         敏感操作如修改密码、增删改资源等,应当被审计日志记录。
         其他操作由开发者自行决定是否需要记录审计日志。
         但不应当所有操作都记录审计日志。
-        
+
         权限:
         - 仅 admin 用户可以查询审计日志。
       parameters:
@@ -137,7 +137,7 @@ paths:
       description: |-
         用户正确登录后,应当通过 Set-Cookie 返回登录相关凭证。
         客户端后续取用 Cookie 对其他接口进行访问。
-        
+
         **首次登录限制:**
         - 使用初始密码首次登录后,用户必须先修改密码才能访问其他受保护的接口。
         - 在修改密码前访问其他接口将返回 403 错误,提示需要修改密码。
@@ -330,7 +330,7 @@ paths:
         - Me
       summary: 查询本人参与的 projects 列表
       description: |-
-        示例: 
+        示例:
         /api/me/projects?team_id=1&team_id=2
       operationId: getMyProjects
       parameters:
@@ -537,8 +537,10 @@ paths:
         - Users
       summary: 查询用户加入的 Teams 列表
       description: |-
-        - admin 用户可以查看所有用户所有列表。
-        - 普通用户仅能查看同 Team 下用户的 teams 列表。
+        权限说明：
+        - 查询他人的 teams 列表时首先要满足可见性约束。
+        - admin 用户可以查看所有 users 的所有 teams。
+        - 普通用户仅能查看共同 Teams 下用户的 teams 列表。
         - 普通用户能查看其他用户的 teams 列表不应当超过 Me 自身的列表范围,比如 Me 所在的 teams 为 [a, b], user 所在的 teams 为 [a, c], 那么 Me 查询该接口仅返回 [a]。
       operationId: getUserTeams
       parameters:
@@ -810,8 +812,6 @@ paths:
           application/json:
             schema:
               type: object
-              required:
-                - name
               properties:
                 name:
                   $ref: "#/components/schemas/Team/properties/name"
@@ -878,9 +878,10 @@ paths:
                 maxItems: 1
             examples:
               重设 Leader:
-                value: [{"op": "replace", "path": "/leader", "value": {"id": 5}}]
+                value:
+                  [{ "op": "replace", "path": "/leader", "value": { "id": 5 } }]
               清空 Leader:
-                value: [{"op": "replace", "path": "/leader", "value": null}]
+                value: [{ "op": "replace", "path": "/leader", "value": null }]
 
       responses:
         200:

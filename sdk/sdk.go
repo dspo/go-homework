@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/pkg/errors"
 )
 
 // SDK is the client interface
@@ -308,11 +310,11 @@ func doRequest[T any](s *sdk, method, pathStr string, body any) (*T, error) {
 	}
 
 	if resp.StatusCode >= 400 {
-		var errResp Error
-		if err := json.Unmarshal(respBody, &errResp); err == nil {
-			return nil, fmt.Errorf("API error (%d): %s", resp.StatusCode, errResp.Error)
+		var e = &Error{StatusCode: resp.StatusCode}
+		if err = json.Unmarshal(respBody, e); err != nil {
+			e.Error_ = errors.Wrapf(err, "response body: %s", string(respBody)).Error()
 		}
-		return nil, fmt.Errorf("API error: status code %d, body: %s", resp.StatusCode, string(respBody))
+		return nil, e
 	}
 
 	var out T

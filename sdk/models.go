@@ -6,11 +6,6 @@ import (
 	"time"
 )
 
-// Error represents an error response
-type Error struct {
-	Error string `json:"error"`
-}
-
 // User represents a user model
 type User struct {
 	ID        int     `json:"id"`
@@ -140,7 +135,7 @@ type CreateTeamRequest struct {
 
 // UpdateTeamRequest represents a request to update a team
 type UpdateTeamRequest struct {
-	Name string  `json:"name"`
+	Name *string `json:"name,omitempty"`
 	Desc *string `json:"desc,omitempty"`
 }
 

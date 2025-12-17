@@ -15,9 +15,9 @@ var _ = PDescribe("Projects", func() {
 
 		BeforeAll(func() {
 			s := sdk.GetSDK().Guest()
-			leaderUser, leaderPass = createAndSetupUser(helperUniqueName("project_crud_leader"), "pass")
-			memberUser, memberPass = createAndSetupUser(helperUniqueName("project_crud_member"), "pass")
-			outsiderUser, outsiderPass = createAndSetupUser(helperUniqueName("project_crud_outsider"), "pass")
+			leaderUser, leaderPass = createAndSetupUser(helperUniqueName("project_crud_leader"), "pass1234")
+			memberUser, memberPass = createAndSetupUser(helperUniqueName("project_crud_member"), "pass1234")
+			outsiderUser, outsiderPass = createAndSetupUser(helperUniqueName("project_crud_outsider"), "pass1234")
 
 			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_project_crud")})
 			Expect(err).NotTo(HaveOccurred(), "failed to Create team: %v", err)
@@ -37,7 +37,7 @@ var _ = PDescribe("Projects", func() {
 
 		It("should create project in team", func() {
 			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			project, err := s.Teams().CreateProject(teamID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_crud_main")})
 			Expect(err).NotTo(HaveOccurred(), "failed to CreateProject: %v", err)
@@ -53,8 +53,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should get project by team leader", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			project, err := s.Projects().Get(projectID)
 			Expect(err).NotTo(HaveOccurred(), "failed to Get project: %v", err)
@@ -64,7 +63,7 @@ var _ = PDescribe("Projects", func() {
 		It("should get project by participant", func() {
 			s := loginAsAdmin(sdk.GetSDK())
 			Expect(s.Projects().AddUser(projectID, memberUser.ID)).NotTo(HaveOccurred())
-			_, err := s.LoginWithUsername(memberUser.Username, memberPass)
+			s, err := s.LoginWithUsername(memberUser.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			project, err := s.Projects().Get(projectID)
 			Expect(err).NotTo(HaveOccurred(), "failed to Get project: %v", err)
@@ -72,8 +71,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should fail to get project by non-participant", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(outsiderUser.Username, outsiderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(outsiderUser.Username, outsiderPass)
 			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			_, err = s.Projects().Get(projectID)
 			Expect(err).To(HaveOccurred())
@@ -93,8 +91,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should update project by team leader", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			project, err := s.Projects().Update(projectID, &sdk.UpdateProjectRequest{
 				Name: helperUniqueName("project_leader_update"),
@@ -104,8 +101,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should fail to update project by normal member", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(memberUser.Username, memberPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(memberUser.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			_, err = s.Projects().Update(projectID, &sdk.UpdateProjectRequest{Name: helperUniqueName("project_member_update")})
 			Expect(err).To(HaveOccurred())
@@ -113,8 +109,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should patch project status", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			patch := []sdk.PatchProjectRequest{{Op: "replace", Path: "/status", Value: "FINISHED"}}
 			project, err := s.Projects().Patch(projectID, patch)
@@ -123,8 +118,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should patch project name", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			newName := helperUniqueName("patched_name")
 			patch := []sdk.PatchProjectRequest{{Op: "replace", Path: "/name", Value: newName}}
@@ -134,8 +128,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should patch project desc", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			newDesc := "patched desc"
 			patch := []sdk.PatchProjectRequest{{Op: "replace", Path: "/desc", Value: newDesc}}
@@ -146,8 +139,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should fail to patch by normal member", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(memberUser.Username, memberPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(memberUser.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			patch := []sdk.PatchProjectRequest{{Op: "replace", Path: "/name", Value: "fail"}}
 			_, err = s.Projects().Patch(projectID, patch)
@@ -166,8 +158,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should delete project by team leader", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			project, err := s.Teams().CreateProject(teamID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_delete_leader")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -175,8 +166,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should fail to delete project by normal member", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(memberUser.Username, memberPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(memberUser.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			err = s.Projects().Delete(projectID)
 			Expect(err).To(HaveOccurred())
@@ -193,12 +183,12 @@ var _ = PDescribe("Projects", func() {
 
 		BeforeAll(func() {
 			s := sdk.GetSDK().Guest()
-			leaderUser, leaderPass = createAndSetupUser(helperUniqueName("project_member_leader"), "pass")
-			userA, _ = createAndSetupUser(helperUniqueName("project_member_a"), "pass")
-			userB, _ = createAndSetupUser(helperUniqueName("project_member_b"), "pass")
-			userC, _ = createAndSetupUser(helperUniqueName("project_member_c"), "pass")
-			userD, _ = createAndSetupUser(helperUniqueName("project_member_d"), "pass")
-			extraUser, extraUserPass = createAndSetupUser(helperUniqueName("project_member_extra"), "pass")
+			leaderUser, leaderPass = createAndSetupUser(helperUniqueName("project_member_leader"), "pass1234")
+			userA, _ = createAndSetupUser(helperUniqueName("project_member_a"), "pass1234")
+			userB, _ = createAndSetupUser(helperUniqueName("project_member_b"), "pass1234")
+			userC, _ = createAndSetupUser(helperUniqueName("project_member_c"), "pass1234")
+			userD, _ = createAndSetupUser(helperUniqueName("project_member_d"), "pass1234")
+			extraUser, extraUserPass = createAndSetupUser(helperUniqueName("project_member_extra"), "pass1234")
 
 			s = loginAsAdmin(s)
 			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_project_members")})
@@ -251,8 +241,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should add member by team leader", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Projects().AddUser(projectID, userB.ID)).NotTo(HaveOccurred())
 		})
@@ -270,8 +259,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should fail to add invisible user by leader", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			err = s.Projects().AddUser(projectID, userD.ID)
 			Expect(err).To(HaveOccurred())
@@ -318,8 +306,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should remove member by team leader", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Projects().RemoveUser(projectID, userB.ID)).NotTo(HaveOccurred())
 		})
@@ -332,7 +319,7 @@ var _ = PDescribe("Projects", func() {
 				Expect(s.Projects().AddUser(projectID, extraUser.ID)).NotTo(HaveOccurred())
 				extraAdded = true
 			}
-			_, err := s.LoginWithUsername(extraUser.Username, extraUserPass)
+			s, err := s.LoginWithUsername(extraUser.Username, extraUserPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			err = s.Projects().RemoveUser(projectID, userC.ID)
 			Expect(err).To(HaveOccurred())
@@ -346,9 +333,9 @@ var _ = PDescribe("Projects", func() {
 		var leaderPass, memberPass, outsiderPass string
 
 		BeforeAll(func() {
-			leaderUser, leaderPass = createAndSetupUser(helperUniqueName("project_perm_leader"), "pass")
-			memberUser, memberPass = createAndSetupUser(helperUniqueName("project_perm_member"), "pass")
-			outsiderUser, outsiderPass = createAndSetupUser(helperUniqueName("project_perm_out"), "pass")
+			leaderUser, leaderPass = createAndSetupUser(helperUniqueName("project_perm_leader"), "pass1234")
+			memberUser, memberPass = createAndSetupUser(helperUniqueName("project_perm_member"), "pass1234")
+			outsiderUser, outsiderPass = createAndSetupUser(helperUniqueName("project_perm_out"), "pass1234")
 
 			s := loginAsAdmin(sdk.GetSDK())
 			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_project_permissions")})
@@ -386,8 +373,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should allow leader to manage team projects", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(leaderUser.Username, leaderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			project, err := s.Teams().CreateProject(teamID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_perm_leader_manage")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -400,8 +386,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should restrict normal member permissions", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(memberUser.Username, memberPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(memberUser.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Projects().Get(projectID)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -418,8 +403,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should restrict non-participant access", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(outsiderUser.Username, outsiderPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(outsiderUser.Username, outsiderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Projects().Get(projectID)
 			Expect(err).To(HaveOccurred())
@@ -453,7 +437,7 @@ var _ = PDescribe("Projects", func() {
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			projectB1ID = projectB1.ID
 
-			userX, userPass = createAndSetupUser(helperUniqueName("project_me_user"), "pass")
+			userX, userPass = createAndSetupUser(helperUniqueName("project_me_user"), "pass1234")
 			Expect(s.Teams().AddUser(teamAID, userX.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamBID, userX.ID)).NotTo(HaveOccurred())
 			Expect(s.Projects().AddUser(projectA1ID, userX.ID)).NotTo(HaveOccurred())
@@ -468,8 +452,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should list all my projects", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(userX.Username, userPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(userX.Username, userPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			projects, err := s.Me().ListProjects(nil)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -482,8 +465,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should filter projects by team", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(userX.Username, userPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(userX.Username, userPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			params := &sdk.ListParams{TeamIds: []int{teamAID}}
 			projects, err := s.Me().ListProjects(params)
@@ -493,8 +475,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should filter by multiple teams", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(userX.Username, userPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(userX.Username, userPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			params := &sdk.ListParams{TeamIds: []int{teamAID, teamBID}}
 			projects, err := s.Me().ListProjects(params)
@@ -507,8 +488,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should search projects by name", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(userX.Username, userPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(userX.Username, userPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			params := &sdk.ListParams{Name: Ptr(projectA1Name)}
 			projects, err := s.Me().ListProjects(params)
@@ -518,8 +498,7 @@ var _ = PDescribe("Projects", func() {
 		})
 
 		It("should exit from project", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(userX.Username, userPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(userX.Username, userPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Me().ExitProject(projectA1ID)).NotTo(HaveOccurred())
 			projects, err := s.Me().ListProjects(nil)
@@ -547,9 +526,9 @@ var _ = PDescribe("Projects", func() {
 	Context("Integration: Project Lifecycle", Ordered, func() {
 		It("should handle complete project lifecycle", func() {
 			s := sdk.GetSDK().Guest()
-			leader, leaderPass := createAndSetupUser(helperUniqueName("lifecycle_leader"), "pass")
-			memberA, memberAPass := createAndSetupUser(helperUniqueName("lifecycle_member_a"), "pass")
-			memberB, memberBPass := createAndSetupUser(helperUniqueName("lifecycle_member_b"), "pass")
+			leader, leaderPass := createAndSetupUser(helperUniqueName("lifecycle_leader"), "pass1234")
+			memberA, memberAPass := createAndSetupUser(helperUniqueName("lifecycle_member_a"), "pass1234")
+			memberB, memberBPass := createAndSetupUser(helperUniqueName("lifecycle_member_b"), "pass1234")
 
 			DeferCleanup(func() {
 				s := loginAsAdmin(sdk.GetSDK())
@@ -572,7 +551,7 @@ var _ = PDescribe("Projects", func() {
 			Expect(s.Teams().UpdateLeader(teamID, Ptr(leader.ID))).NotTo(HaveOccurred())
 
 			By("Leader creates project")
-			_, err = s.LoginWithUsername(leader.Username, leaderPass)
+			s, err = s.LoginWithUsername(leader.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			project, err := s.Teams().CreateProject(teamID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_lifecycle")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -595,7 +574,7 @@ var _ = PDescribe("Projects", func() {
 			Expect(memberBFound).To(BeTrue(), "member not previously in team should auto-join via project add")
 
 			By("Leader updates project status to IN_PROGRESS")
-			_, err = s.LoginWithUsername(leader.Username, leaderPass)
+			s, err = s.LoginWithUsername(leader.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			inProgress := "IN_PROGRESS"
 			project, err = s.Projects().Update(projectID, &sdk.UpdateProjectRequest{Status: &inProgress})
@@ -603,11 +582,11 @@ var _ = PDescribe("Projects", func() {
 			Expect(project.Status).To(Equal(inProgress))
 
 			By("Members can view project details")
-			_, err = s.LoginWithUsername(memberA.Username, memberAPass)
+			s, err = s.LoginWithUsername(memberA.Username, memberAPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Projects().Get(projectID)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			_, err = s.LoginWithUsername(memberB.Username, memberBPass)
+			s, err = s.LoginWithUsername(memberB.Username, memberBPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Projects().Get(projectID)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -639,7 +618,7 @@ var _ = PDescribe("Projects", func() {
 			Expect(memberAFound).To(BeTrue())
 
 			By("Leader finishes project")
-			_, err = s.LoginWithUsername(leader.Username, leaderPass)
+			s, err = s.LoginWithUsername(leader.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			finished := "FINISHED"
 			project, err = s.Projects().Update(projectID, &sdk.UpdateProjectRequest{Status: &finished})

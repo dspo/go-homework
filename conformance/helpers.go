@@ -2,8 +2,9 @@ package conformance
 
 import (
 	"fmt"
-	"time"
+	"strings"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 
 	"github.com/dspo/go-homework/sdk"
@@ -11,7 +12,13 @@ import (
 
 // helperUniqueName returns a unique name with the given prefix.
 func helperUniqueName(prefix string) string {
-	return fmt.Sprintf("%s_%d", prefix, time.Now().UnixNano())
+	suffix := uuid.New().String()
+	suffix = strings.ReplaceAll(suffix, "-", "_")
+	name := fmt.Sprintf("%s_%s", prefix, suffix)
+	if len(name) > 20 {
+		name = name[:20]
+	}
+	return name
 }
 
 func Ptr[T any](v T) *T {
