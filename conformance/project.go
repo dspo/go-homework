@@ -485,7 +485,7 @@ var _ = PDescribe("Projects", func() {
 			s := sdk.GetSDK().Guest()
 			_, err := s.LoginWithUsername(userX.Username, userPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			params := &sdk.ListParams{TeamIDs: []int{teamAID}}
+			params := &sdk.ListParams{TeamIds: []int{teamAID}}
 			projects, err := s.Me().ListProjects(params)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(projects.Total).To(Equal(1))
@@ -496,7 +496,7 @@ var _ = PDescribe("Projects", func() {
 			s := sdk.GetSDK().Guest()
 			_, err := s.LoginWithUsername(userX.Username, userPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			params := &sdk.ListParams{TeamIDs: []int{teamAID, teamBID}}
+			params := &sdk.ListParams{TeamIds: []int{teamAID, teamBID}}
 			projects, err := s.Me().ListProjects(params)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			ids := []int{}

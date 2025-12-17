@@ -1,6 +1,10 @@
 package sdk
 
-import "time"
+import (
+	"net/url"
+	"strconv"
+	"time"
+)
 
 // Error represents an error response
 type Error struct {
@@ -200,12 +204,53 @@ type ListParams struct {
 	PageSize  *int     `json:"page_size,omitempty"`
 	Keyword   *string  `json:"keyword,omitempty"`
 	Name      *string  `json:"name,omitempty"`
-	TeamIDs   []int    `json:"team_id,omitempty"`
+	TeamIds   []int    `json:"team_id,omitempty"`
 	RoleNames []string `json:"role_name,omitempty"`
 	Leading   *bool    `json:"leading,omitempty"`
 	PartIn    *bool    `json:"part_in,omitempty"`
 	StartAt   *int64   `json:"start_at,omitempty"`
 	EndAt     *int64   `json:"end_at,omitempty"`
+}
+
+func (p *ListParams) ToURLValues() url.Values {
+	var values = make(url.Values)
+	if p == nil {
+		return values
+	}
+	if p.OrderBy != nil {
+		values.Set("order_by", *p.OrderBy)
+	}
+	if p.Page != nil {
+		values.Set("page", strconv.Itoa(*p.Page))
+	}
+	if p.PageSize != nil {
+		values.Set("page_size", strconv.Itoa(*p.PageSize))
+	}
+	if p.Keyword != nil {
+		values.Set("keyword", *p.Keyword)
+	}
+	if p.Name != nil {
+		values.Set("name", *p.Name)
+	}
+	for _, teamId := range p.TeamIds {
+		values.Add("team_id", strconv.Itoa(teamId))
+	}
+	for _, name := range p.RoleNames {
+		values.Add("role_name", name)
+	}
+	if p.Leading != nil {
+		values.Set("leading", strconv.FormatBool(*p.Leading))
+	}
+	if p.PartIn != nil {
+		values.Set("part_in", strconv.FormatBool(*p.PartIn))
+	}
+	if p.StartAt != nil {
+		values.Set("start_at", strconv.FormatInt(*p.StartAt, 10))
+	}
+	if p.EndAt != nil {
+		values.Set("end_at", strconv.FormatInt(*p.EndAt, 10))
+	}
+	return values
 }
 
 // UnixToTime converts Unix timestamp to time.Time

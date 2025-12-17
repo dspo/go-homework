@@ -163,7 +163,7 @@ var _ = Describe("Authentication", func() {
 	})
 })
 
-var _ = PDescribe("Users", func() {
+var _ = Describe("Users", func() {
 	Context("User CRUD Operations", Ordered, func() {
 		var userID int
 
@@ -519,7 +519,7 @@ var _ = PDescribe("Users", func() {
 			Expect(team.Leader).NotTo(BeNil())
 			Expect(team.Leader.ID).To(Equal(user.ID))
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			leading := true
 			teams, err := s.Me().ListTeams(&leading)
@@ -549,9 +549,12 @@ var _ = PDescribe("Users", func() {
 
 			Expect(s.Teams().AddUser(teamLeader.ID, user.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamMember.ID, user.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamLeader.ID, Ptr(user.ID))).NotTo(HaveOccurred())
+			team, err := s.Teams().UpdateLeader(teamLeader.ID, Ptr(user.ID))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(team.Leader).NotTo(BeNil())
+			Expect(team.Leader.ID).To(Equal(user.ID))
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			leading := false
 			teams, err := s.Me().ListTeams(&leading)
@@ -642,7 +645,7 @@ var _ = PDescribe("Users", func() {
 			Expect(s.Projects().AddUser(projA.ID, user.ID)).NotTo(HaveOccurred())
 			Expect(s.Projects().AddUser(projB.ID, user.ID)).NotTo(HaveOccurred())
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			projects, err := s.Me().ListProjects(nil)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -682,15 +685,15 @@ var _ = PDescribe("Users", func() {
 			Expect(s.Projects().AddUser(projA.ID, user.ID)).NotTo(HaveOccurred())
 			Expect(s.Projects().AddUser(projB.ID, user.ID)).NotTo(HaveOccurred())
 
-			_, err = s.LoginWithUsername(user.Username, pass)
+			s, err = s.LoginWithUsername(user.Username, pass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			paramsA := &sdk.ListParams{TeamIDs: []int{teamA.ID}}
+			paramsA := &sdk.ListParams{TeamIds: []int{teamA.ID}}
 			projectsA, err := s.Me().ListProjects(paramsA)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
+			Expect(err).NotTo(HaveOccurred(), "failed to ListProjects: %v", err)
 			Expect(projectsA.Total).To(Equal(1))
 			Expect(projectsA.List[0].ID).To(Equal(projA.ID))
 
-			paramsBoth := &sdk.ListParams{TeamIDs: []int{teamA.ID, teamB.ID}}
+			paramsBoth := &sdk.ListParams{TeamIds: []int{teamA.ID, teamB.ID}}
 			projectsBoth, err := s.Me().ListProjects(paramsBoth)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(projectsBoth.Total).To(Equal(2))
@@ -802,8 +805,7 @@ var _ = PDescribe("Users", func() {
 		})
 
 		It("should respect visibility when listing user teams", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(viewerUser.Username, viewerPass)
+			s, err := sdk.GetSDK().Guest().LoginWithUsername(viewerUser.Username, viewerPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			teams, err := s.Users().ListTeams(targetUser.ID, nil)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -824,11 +826,10 @@ var _ = PDescribe("Users", func() {
 		})
 
 		It("should respect visibility when listing user projects", func() {
-			s := sdk.GetSDK().Guest()
-			_, err := s.LoginWithUsername(viewerUser.Username, viewerPass)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
+			s, err := sdk.GetSDK().LoginWithUsername(viewerUser.Username, viewerPass)
+			Expect(err).NotTo(HaveOccurred(), "failed to LoginWithUsername: %v", err)
 			projects, err := s.Users().ListProjects(targetUser.ID)
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
+			Expect(err).NotTo(HaveOccurred(), "failed to ListProjects: %v", err)
 			Expect(projects.Total).To(Equal(1))
 			Expect(projects.List[0].ID).To(Equal(projectCommonID))
 		})

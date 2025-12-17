@@ -278,7 +278,12 @@ func doRequest[T any](s *sdk, method, pathStr string, body any) (*T, error) {
 	}
 
 	// Construct full URL using url.URL
-	fullURL := s.baseURL.ResolveReference(&url.URL{Path: pathStr})
+	// Parse pathStr to properly handle query parameters
+	relativeURL, err := url.Parse(pathStr)
+	if err != nil {
+		return nil, fmt.Errorf("parse path: %w", err)
+	}
+	fullURL := s.baseURL.ResolveReference(relativeURL)
 
 	req, err := http.NewRequest(method, fullURL.String(), bodyReader)
 	if err != nil {
@@ -318,51 +323,6 @@ func doRequest[T any](s *sdk, method, pathStr string, body any) (*T, error) {
 	}
 
 	return &out, nil
-}
-
-func buildQueryParams(params *ListParams) url.Values {
-	query := url.Values{}
-	if params == nil {
-		return query
-	}
-
-	if params.OrderBy != nil {
-		query.Set("order_by", *params.OrderBy)
-	}
-	if params.Page != nil {
-		query.Set("page", strconv.Itoa(*params.Page))
-	}
-	if params.PageSize != nil {
-		query.Set("page_size", strconv.Itoa(*params.PageSize))
-	}
-	if params.Keyword != nil {
-		query.Set("keyword", *params.Keyword)
-	}
-	if params.Name != nil {
-		query.Set("name", *params.Name)
-	}
-	if params.Leading != nil {
-		query.Set("leading", strconv.FormatBool(*params.Leading))
-	}
-	if params.PartIn != nil {
-		query.Set("part_in", strconv.FormatBool(*params.PartIn))
-	}
-	if params.StartAt != nil {
-		query.Set("start_at", strconv.FormatInt(*params.StartAt, 10))
-	}
-	if params.EndAt != nil {
-		query.Set("end_at", strconv.FormatInt(*params.EndAt, 10))
-	}
-
-	for _, id := range params.TeamIDs {
-		query.Add("team_id", strconv.Itoa(id))
-	}
-
-	for _, name := range params.RoleNames {
-		query.Add("role_name", name)
-	}
-
-	return query
 }
 
 // =============== Authentication implementations ===============
@@ -434,10 +394,9 @@ func (m *meAPI) UpdatePassword(oldPassword, newPassword string) error {
 
 func (m *meAPI) ListTeams(leading *bool) (*TeamsListResponse, error) {
 	params := &ListParams{Leading: leading}
-	query := buildQueryParams(params)
 	pathURL := &url.URL{
 		Path:     "/api/me/teams",
-		RawQuery: query.Encode(),
+		RawQuery: params.ToURLValues().Encode(),
 	}
 	resp, err := doRequest[TeamsListResponse](m.sdk, http.MethodGet, pathURL.String(), nil)
 	return resp, err
@@ -450,10 +409,9 @@ func (m *meAPI) ExitTeam(teamID int) error {
 }
 
 func (m *meAPI) ListProjects(params *ListParams) (*ProjectsListResponse, error) {
-	query := buildQueryParams(params)
 	pathURL := &url.URL{
 		Path:     "/api/me/projects",
-		RawQuery: query.Encode(),
+		RawQuery: params.ToURLValues().Encode(),
 	}
 	resp, err := doRequest[ProjectsListResponse](m.sdk, http.MethodGet, pathURL.String(), nil)
 	return resp, err
@@ -481,7 +439,7 @@ func (u *usersAPI) Create(username, password string) (*User, error) {
 }
 
 func (u *usersAPI) List(params *ListParams) (*UsersListResponse, error) {
-	query := buildQueryParams(params)
+	query := params.ToURLValues()
 	pathURL := &url.URL{
 		Path:     "/api/users",
 		RawQuery: query.Encode(),
@@ -503,7 +461,7 @@ func (u *usersAPI) Delete(userID int) error {
 }
 
 func (u *usersAPI) ListTeams(userID int, params *ListParams) (*TeamsListResponse, error) {
-	query := buildQueryParams(params)
+	query := params.ToURLValues()
 	pathURL := &url.URL{
 		Path:     path.Join("/api/users", strconv.Itoa(userID), "teams"),
 		RawQuery: query.Encode(),
@@ -538,7 +496,7 @@ type teamsAPI struct {
 }
 
 func (t *teamsAPI) List(params *ListParams) (*TeamsListResponse, error) {
-	query := buildQueryParams(params)
+	query := params.ToURLValues()
 	pathURL := &url.URL{
 		Path:     "/api/teams",
 		RawQuery: query.Encode(),
@@ -591,7 +549,7 @@ func (t *teamsAPI) Delete(teamID int) error {
 }
 
 func (t *teamsAPI) ListUsers(teamID int, params *ListParams) (*UsersListResponse, error) {
-	query := buildQueryParams(params)
+	query := params.ToURLValues()
 	pathURL := &url.URL{
 		Path:     path.Join("/api/teams", strconv.Itoa(teamID), "users"),
 		RawQuery: query.Encode(),
@@ -614,7 +572,7 @@ func (t *teamsAPI) RemoveUser(teamID, userID int) error {
 }
 
 func (t *teamsAPI) ListProjects(teamID int, params *ListParams) (*ProjectsListResponse, error) {
-	query := buildQueryParams(params)
+	query := params.ToURLValues()
 	pathURL := &url.URL{
 		Path:     path.Join("/api/teams", strconv.Itoa(teamID), "projects"),
 		RawQuery: query.Encode(),
@@ -660,7 +618,7 @@ func (p *projectsAPI) Delete(projectID int) error {
 }
 
 func (p *projectsAPI) ListUsers(projectID int, params *ListParams) (*UsersListResponse, error) {
-	query := buildQueryParams(params)
+	query := params.ToURLValues()
 	pathURL := &url.URL{
 		Path:     path.Join("/api/projects", strconv.Itoa(projectID), "users"),
 		RawQuery: query.Encode(),
@@ -711,7 +669,7 @@ type auditsAPI struct {
 }
 
 func (a *auditsAPI) List(params *ListParams) (*AuditsListResponse, error) {
-	query := buildQueryParams(params)
+	query := params.ToURLValues()
 	pathURL := &url.URL{
 		Path:     "/api/audits",
 		RawQuery: query.Encode(),
