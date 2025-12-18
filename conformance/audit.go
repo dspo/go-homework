@@ -75,7 +75,7 @@ var _ = Describe("Audits", func() {
 			Expect(err).To(sdk.HaveOccurredWithStatusCode(http.StatusForbidden))
 		})
 
-		PIt("should filter by keyword", func() {
+		It("should filter by keyword", func() {
 			s := loginAsAdmin(sdk.GetSDK())
 			params := &sdk.ListParams{Keyword: Ptr(auditKeyword)}
 			logs, err := s.Audits().List(params)
@@ -87,7 +87,7 @@ var _ = Describe("Audits", func() {
 			}
 		})
 
-		PIt("should filter by time range", func() {
+		It("should filter by time range", func() {
 			s := loginAsAdmin(sdk.GetSDK())
 			params := &sdk.ListParams{StartAt: helperInt64Ptr(timeStart), EndAt: helperInt64Ptr(timeEnd)}
 			logs, err := s.Audits().List(params)
@@ -99,7 +99,7 @@ var _ = Describe("Audits", func() {
 			}
 		})
 
-		PIt("should paginate audit logs", func() {
+		It("should paginate audit logs", func() {
 			s := loginAsAdmin(sdk.GetSDK())
 			page := 1
 			pageSize := 1
@@ -112,18 +112,6 @@ var _ = Describe("Audits", func() {
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(secondPage.List).To(HaveLen(1))
 			Expect(firstPage.List[0].ID).NotTo(Equal(secondPage.List[0].ID))
-		})
-
-		PIt("should order audit logs", func() {
-			s := loginAsAdmin(sdk.GetSDK())
-			orderBy := "created_at"
-			logs, err := s.Audits().List(&sdk.ListParams{OrderBy: &orderBy})
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			prev := int64(0)
-			for _, entry := range logs.List {
-				Expect(entry.CreatedAt).To(BeNumerically(">=", prev))
-				prev = entry.CreatedAt
-			}
 		})
 	})
 })

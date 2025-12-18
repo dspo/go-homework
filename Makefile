@@ -25,10 +25,10 @@ endif
 
 gofmt: ## Apply go fmt
 	@gofmt -w -r 'interface{} -> any' .
-	@gofmt -w -r 'ginkgo.FIt -> ginkgo.It' test
-	@gofmt -w -r 'ginkgo.FContext -> ginkgo.Context' test
-	@gofmt -w -r 'ginkgo.FDescribe -> ginkgo.Describe' test
-	@gofmt -w -r 'ginkgo.FDescribeTable -> ginkgo.DescribeTable' test
+	@gofmt -w -r 'ginkgo.FIt -> ginkgo.It' conformance
+	@gofmt -w -r 'ginkgo.FContext -> ginkgo.Context' conformance
+	@gofmt -w -r 'ginkgo.FDescribe -> ginkgo.Describe' conformance
+	@gofmt -w -r 'ginkgo.FDescribeTable -> ginkgo.DescribeTable' conformance
 	@go fmt ./...
 .PHONY: gofmt
 

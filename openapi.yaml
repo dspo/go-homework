@@ -1329,9 +1329,12 @@ paths:
       operationId: addProjectUser
       summary: 为 Project 添加参与人员。
       description: |-
-        - admin 可以为 Team 添加参与人员。
-        - Team Leader 可以为 Team 下的 Project 添加参与人员。注意：被添加的 User 应当是 Me 可见的。
-        - 如果 User 被添加到 Project 时还不是 Team 成员,则自动成为 Team 成员。
+        - me == admin：可以添加任意 User 到任意 Team。
+        - me == Team Leader：可以添加 me 可见的 User 到 me 担任 Leader 的 Team。
+        - me == 其他普通用户：不可以添加 User 到 Team。
+        - 如果 User 被添加到 Project 时还不是 Project 所在的 Team 的成员, 则自动成为 Team 成员。注意！本条规则在任何情况下都不是废话：
+          - me == admin：假设有 userA not in [teamA]，teamA has projectA，那么 add userA to projectA 会连带导致 userA is added to teamA。
+          - me == Team Leader：假设有 userA in [teamA, teamB]，userA lead teamA, teamA has projectA，userB in [teamB], 那么 userA can see userB, userA add userB to teamA 会连带导致 userB is added to teamA。
       requestBody:
         required: true
         content:

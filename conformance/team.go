@@ -7,7 +7,7 @@ import (
 	"github.com/dspo/go-homework/sdk"
 )
 
-var _ = PDescribe("Teams", func() {
+var _ = Describe("Teams", func() {
 	Context("Team CRUD Operations", Ordered, func() {
 		var teamID int
 		var memberUser, leaderUser, outsiderUser *sdk.User
@@ -26,7 +26,8 @@ var _ = PDescribe("Teams", func() {
 
 			Expect(s.Teams().AddUser(teamID, memberUser.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamID, leaderUser.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))
+			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 		})
 
 		AfterAll(func() {
@@ -155,7 +156,8 @@ var _ = PDescribe("Teams", func() {
 			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_delete_leader")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Teams().AddUser(team.ID, leaderUser.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(team.ID, Ptr(leaderUser.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(team.ID, Ptr(leaderUser.ID))
+			Expect(err).NotTo(HaveOccurred())
 
 			s, err = s.LoginWithUsername(leaderUser.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -167,7 +169,7 @@ var _ = PDescribe("Teams", func() {
 	})
 
 	Context("Team Members Management", Ordered, func() {
-		var teamID, otherTeamID int
+		var teamID, otherTeamID, visibleTeamID int
 		var leaderUser, userA, userB, invisibleUser, extraUser *sdk.User
 		var leaderPass, userAPass, extraUserPass string
 		var extraAdded bool
@@ -185,6 +187,13 @@ var _ = PDescribe("Teams", func() {
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			teamID = team.ID
 
+			// 为 leader 和 userB 创建一个共同 Team，满足可见性再由 leader 添加到目标 Team。
+			visibleTeam, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_visible_bridge")})
+			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
+			visibleTeamID = visibleTeam.ID
+			Expect(s.Teams().AddUser(visibleTeamID, leaderUser.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(visibleTeamID, userB.ID)).NotTo(HaveOccurred())
+
 			otherTeam, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_hidden")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			otherTeamID = otherTeam.ID
@@ -193,6 +202,7 @@ var _ = PDescribe("Teams", func() {
 
 		AfterAll(func() {
 			s := loginAsAdmin(sdk.GetSDK())
+			_ = s.Teams().Delete(visibleTeamID)
 			_ = s.Teams().Delete(teamID)
 			_ = s.Teams().Delete(otherTeamID)
 			_ = s.Users().Delete(leaderUser.ID)
@@ -209,7 +219,8 @@ var _ = PDescribe("Teams", func() {
 			Expect(members.Total).To(Equal(0))
 
 			Expect(s.Teams().AddUser(teamID, leaderUser.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))
+			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 		})
 
 		It("should add member by admin", func() {
@@ -375,9 +386,9 @@ var _ = PDescribe("Teams", func() {
 		It("should change leader by current leader", func() {
 			s, err := sdk.GetSDK().Guest().LoginWithUsername(userMember.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			team, err := s.Teams().UpdateLeader(teamID, Ptr(userLeader.ID))
-			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
-			Expect(team.Leader.ID).To(Equal(userLeader.ID))
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(userLeader.ID))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("403"))
 		})
 
 		It("should fail to change leader by normal member", func() {
@@ -398,9 +409,10 @@ var _ = PDescribe("Teams", func() {
 		It("should clear leader when leader exits team", func() {
 			s := loginAsAdmin(sdk.GetSDK())
 			Expect(s.Teams().AddUser(teamID, userLeader.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(userLeader.ID))).NotTo(HaveOccurred())
+			_, err := s.Teams().UpdateLeader(teamID, Ptr(userLeader.ID))
+			Expect(err).NotTo(HaveOccurred())
 
-			s, err := s.LoginWithUsername(userLeader.Username, leaderPass)
+			s, err = s.LoginWithUsername(userLeader.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(s.Me().ExitTeam(teamID)).NotTo(HaveOccurred())
 
@@ -413,7 +425,8 @@ var _ = PDescribe("Teams", func() {
 		It("should clear leader when leader is removed", func() {
 			s := loginAsAdmin(sdk.GetSDK())
 			Expect(s.Teams().AddUser(teamID, userLeader.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(userLeader.ID))).NotTo(HaveOccurred())
+			_, err := s.Teams().UpdateLeader(teamID, Ptr(userLeader.ID))
+			Expect(err).NotTo(HaveOccurred())
 			Expect(s.Teams().RemoveUser(teamID, userLeader.ID)).NotTo(HaveOccurred())
 			team, err := s.Teams().Get(teamID)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -439,7 +452,8 @@ var _ = PDescribe("Teams", func() {
 			teamID = team.ID
 			Expect(s.Teams().AddUser(teamID, leaderUser.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamID, memberUser.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))
+			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 		})
 
 		AfterAll(func() {

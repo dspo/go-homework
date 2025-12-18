@@ -7,14 +7,14 @@ import (
 	"github.com/dspo/go-homework/sdk"
 )
 
-var _ = PDescribe("Projects", func() {
+var _ = Describe("Projects", func() {
 	Context("Project CRUD Operations", Ordered, func() {
 		var teamID, projectID int
 		var leaderUser, memberUser, outsiderUser *sdk.User
 		var leaderPass, memberPass, outsiderPass string
 
 		BeforeAll(func() {
-			s := sdk.GetSDK().Guest()
+			s := loginAsAdmin(sdk.GetSDK())
 			leaderUser, leaderPass = createAndSetupUser(helperUniqueName("project_crud_leader"), "pass1234")
 			memberUser, memberPass = createAndSetupUser(helperUniqueName("project_crud_member"), "pass1234")
 			outsiderUser, outsiderPass = createAndSetupUser(helperUniqueName("project_crud_outsider"), "pass1234")
@@ -24,7 +24,8 @@ var _ = PDescribe("Projects", func() {
 			teamID = team.ID
 			Expect(s.Teams().AddUser(teamID, leaderUser.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamID, memberUser.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		AfterAll(func() {
@@ -197,7 +198,8 @@ var _ = PDescribe("Projects", func() {
 			Expect(s.Teams().AddUser(teamID, leaderUser.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamID, userA.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamID, userB.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))
+			Expect(err).NotTo(HaveOccurred())
 
 			project, err := s.Teams().CreateProject(teamID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_members")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
@@ -343,7 +345,8 @@ var _ = PDescribe("Projects", func() {
 			teamID = team.ID
 			Expect(s.Teams().AddUser(teamID, leaderUser.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamID, memberUser.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(leaderUser.ID))
+			Expect(err).NotTo(HaveOccurred())
 			project, err := s.Teams().CreateProject(teamID, &sdk.CreateProjectRequest{Name: helperUniqueName("project_perm_main")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			projectID = project.ID
@@ -541,14 +544,20 @@ var _ = PDescribe("Projects", func() {
 			team, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_lifecycle")})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			teamID := team.ID
+			bridgeTeam, err := s.Teams().Create(&sdk.CreateTeamRequest{Name: helperUniqueName("team_lifecycle_visible")})
+			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			DeferCleanup(func() {
 				s = loginAsAdmin(s)
 				_ = s.Teams().Delete(teamID)
+				_ = s.Teams().Delete(bridgeTeam.ID)
 			})
 
 			Expect(s.Teams().AddUser(teamID, leader.ID)).NotTo(HaveOccurred())
 			Expect(s.Teams().AddUser(teamID, memberA.ID)).NotTo(HaveOccurred())
-			Expect(s.Teams().UpdateLeader(teamID, Ptr(leader.ID))).NotTo(HaveOccurred())
+			_, err = s.Teams().UpdateLeader(teamID, Ptr(leader.ID))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(bridgeTeam.ID, leader.ID)).NotTo(HaveOccurred())
+			Expect(s.Teams().AddUser(bridgeTeam.ID, memberB.ID)).NotTo(HaveOccurred())
 
 			By("Leader creates project")
 			s, err = s.LoginWithUsername(leader.Username, leaderPass)
@@ -577,7 +586,10 @@ var _ = PDescribe("Projects", func() {
 			s, err = s.LoginWithUsername(leader.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			inProgress := "IN_PROGRESS"
-			project, err = s.Projects().Update(projectID, &sdk.UpdateProjectRequest{Status: &inProgress})
+			project, err = s.Projects().Update(projectID, &sdk.UpdateProjectRequest{
+				Name:   project.Name,
+				Status: &inProgress,
+			})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(project.Status).To(Equal(inProgress))
 
@@ -621,7 +633,10 @@ var _ = PDescribe("Projects", func() {
 			s, err = s.LoginWithUsername(leader.Username, leaderPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			finished := "FINISHED"
-			project, err = s.Projects().Update(projectID, &sdk.UpdateProjectRequest{Status: &finished})
+			project, err = s.Projects().Update(projectID, &sdk.UpdateProjectRequest{
+				Name:   project.Name,
+				Status: &finished,
+			})
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(project.Status).To(Equal(finished))
 
