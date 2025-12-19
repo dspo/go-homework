@@ -33,7 +33,7 @@ func createAndSetupUser(username, password string) (*sdk.User, string) {
 	return user, newPass
 }
 
-var _ = Describe("Authentication", func() {
+var _ = Describe("Authentication", Label("Auth"), func() {
 	Context("Login and Logout", func() {
 		It("should login with username successfully", func() {
 			By("Login with valid username and password")
@@ -162,7 +162,7 @@ var _ = Describe("Authentication", func() {
 	})
 })
 
-var _ = Describe("Users", func() {
+var _ = Describe("Users", Label("User"), func() {
 	Context("User CRUD Operations", Ordered, func() {
 		var userID int
 
@@ -834,7 +834,7 @@ var _ = Describe("Users", func() {
 	})
 })
 
-var _ = Describe("Roles", func() {
+var _ = Describe("Roles", Label("Role"), func() {
 	Context("System Roles", func() {
 		It("should have 3 system roles initialized", func() {
 			s := loginAsAdmin(sdk.GetSDK())

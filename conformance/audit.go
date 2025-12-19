@@ -11,7 +11,7 @@ import (
 	"github.com/dspo/go-homework/sdk"
 )
 
-var _ = Describe("Audits", func() {
+var _ = Describe("Audits", Label("Audit"), func() {
 	Context("Audit Logs", Ordered, func() {
 		var auditKeyword string
 		var auditTeamID int

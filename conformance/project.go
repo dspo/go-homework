@@ -7,7 +7,7 @@ import (
 	"github.com/dspo/go-homework/sdk"
 )
 
-var _ = Describe("Projects", func() {
+var _ = Describe("Projects", Label("Project"), func() {
 	Context("Project CRUD Operations", Ordered, func() {
 		var teamID, projectID int
 		var leaderUser, memberUser, outsiderUser *sdk.User

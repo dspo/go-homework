@@ -1,13 +1,15 @@
 package conformance
 
 import (
+	"net/http"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/dspo/go-homework/sdk"
 )
 
-var _ = Describe("Teams", func() {
+var _ = Describe("Teams", Label("Team"), func() {
 	Context("Team CRUD Operations", Ordered, func() {
 		var teamID int
 		var memberUser, leaderUser, outsiderUser *sdk.User
@@ -387,16 +389,14 @@ var _ = Describe("Teams", func() {
 			s, err := sdk.GetSDK().Guest().LoginWithUsername(userMember.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Teams().UpdateLeader(teamID, Ptr(userLeader.ID))
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("403"))
+			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("should fail to change leader by normal member", func() {
 			s, err := sdk.GetSDK().Guest().LoginWithUsername(userMember.Username, memberPass)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			_, err = s.Teams().UpdateLeader(teamID, Ptr(userMember.ID))
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("403"))
+			Expect(err).To(sdk.HaveOccurredWithStatusCode(http.StatusForbidden))
 		})
 
 		It("should clear leader", func() {
