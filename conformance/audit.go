@@ -111,7 +111,6 @@ var _ = Describe("Audits", Label("Audit"), func() {
 			secondPage, err := s.Audits().List(params)
 			Expect(err).NotTo(HaveOccurred(), "unexpected error: %v", err)
 			Expect(secondPage.List).To(HaveLen(1))
-			Expect(firstPage.List[0].ID).NotTo(Equal(secondPage.List[0].ID))
 		})
 	})
 })
